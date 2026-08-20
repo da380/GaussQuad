@@ -1,7 +1,6 @@
 #ifndef GAUSS_QUAD_GLASER_LIU_ROKHLIN_GUARD_H
 #define GAUSS_QUAD_GLASER_LIU_ROKHLIN_GUARD_H
 
-#include <cassert>
 #include <cmath>
 #include <limits>
 #include <numbers>
@@ -9,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include "Checks.h"
 #include "NumericConcepts/Numeric.hpp"
 
 namespace GaussQuad {
@@ -41,7 +41,7 @@ namespace Internal {
 // n = 16385, where it costs about 2 ms against Golub-Welsch's 5 s.
 template <NumericConcepts::Real Real>
 std::pair<std::vector<Real>, std::vector<Real>> GaussLegendreGLR(int n) {
-  assert(n > 0);
+  Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
 
   // Enough Taylor terms to reach the precision of the type.
   constexpr auto digits = std::numeric_limits<Real>::digits;

@@ -8,6 +8,7 @@
 #include <limits>
 #include <numbers>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -522,6 +523,50 @@ TEST(Api, NodesView) {
   EXPECT_NEAR(sum, 2.0 / 3.0, tol<double>);
 }
 #endif
+
+// ---------------------------------------------------------------------------
+// Argument checking.  These used to be assertions, so in a release build a
+// bad argument was silently undefined rather than diagnosed.
+// ---------------------------------------------------------------------------
+
+TEST(Validation, RejectsBadDegree) {
+  using Real = double;
+  const auto p = GaussQuad::LegendrePolynomial<Real>{};
+  EXPECT_THROW(p.GaussQuadrature(0), std::invalid_argument);
+  EXPECT_THROW(p.GaussQuadrature(-3), std::invalid_argument);
+  EXPECT_THROW(p.GaussQuadrature(0, GaussQuad::Method::GlaserLiuRokhlin),
+               std::invalid_argument);
+  EXPECT_THROW(p.GaussRadauQuadrature(1), std::invalid_argument);
+  EXPECT_THROW(p.GaussLobattoQuadrature(1), std::invalid_argument);
+  EXPECT_THROW(p.Zeros(-1), std::invalid_argument);
+  EXPECT_THROW(GaussQuad::GaussLaguerreQuadrature1D<Real>(0),
+               std::invalid_argument);
+  EXPECT_THROW(GaussQuad::GaussHermiteQuadrature1D<Real>(0),
+               std::invalid_argument);
+  // The smallest valid degrees must still work.
+  EXPECT_NO_THROW(p.GaussQuadrature(1));
+  EXPECT_NO_THROW(p.GaussRadauQuadrature(2));
+  EXPECT_NO_THROW(p.GaussLobattoQuadrature(2));
+  EXPECT_TRUE(p.Zeros(0).empty());
+}
+
+TEST(Validation, RejectsNonIntegrableWeights) {
+  using Real = double;
+  // The Jacobi weight is integrable only for alpha, beta > -1.
+  EXPECT_THROW(GaussQuad::JacobiPolynomial<Real>(-1, 0), std::invalid_argument);
+  EXPECT_THROW(GaussQuad::JacobiPolynomial<Real>(0, -2), std::invalid_argument);
+  EXPECT_THROW(GaussQuad::LaguerrePolynomial<Real>(-1), std::invalid_argument);
+  EXPECT_NO_THROW(GaussQuad::JacobiPolynomial<Real>(-0.999, -0.5));
+  EXPECT_NO_THROW(GaussQuad::LaguerrePolynomial<Real>(-0.999));
+}
+
+TEST(Validation, RejectsMalformedRule) {
+  using Vector = std::vector<double>;
+  EXPECT_THROW(GaussQuad::Quadrature1D<double>({Vector{}, Vector{}}),
+               std::invalid_argument);
+  EXPECT_THROW(GaussQuad::Quadrature1D<double>({Vector{1, 2}, Vector{1}}),
+               std::invalid_argument);
+}
 
 // ---------------------------------------------------------------------------
 // End-to-end: integrate random polynomials of the highest degree each rule is

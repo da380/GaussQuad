@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "Checks.h"
 #include "GlaserLiuRokhlin.h"
 #include "NumericConcepts/Numeric.hpp"
 #include "TridiagonalEigen.h"
@@ -42,7 +43,8 @@ class JacobiPolynomial {
   // Constructor.
   JacobiPolynomial(Real alpha, Real beta) : _alpha{alpha}, _beta{beta} {
     // The Jacobi weight is integrable only for alpha, beta > -1.
-    assert(alpha > -1 && beta > -1);
+    Internal::Require(alpha > -1, "Jacobi alpha must exceed -1", alpha);
+    Internal::Require(beta > -1, "Jacobi beta must exceed -1", beta);
   }
 
   // Evaluation by upwards recursion.
@@ -81,7 +83,8 @@ class JacobiPolynomial {
   // GaussQuadrature is both faster and more accurate at large n; this is kept
   // for the cases where only the roots are wanted.
   auto Zeros(Int n) const {
-    assert(n >= 0);
+    Internal::Require(n >= 0, "cannot find the zeros of a negative degree", n);
+    if (n == 0) return std::vector<Real>{};
     std::vector<Real> zeros;
     zeros.reserve(n);
     const auto maxIter = Int{30};
@@ -110,7 +113,7 @@ class JacobiPolynomial {
 
   // Returns points and weights for Gauss quadrature.
   auto GaussQuadrature(int n) const {
-    assert(n > 0);
+    Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
     auto rule = Internal::GolubWelsch(Diagonal(n), OffDiagonal(n), Mu());
     Symmetrise(rule.first, rule.second);
     return rule;
@@ -120,7 +123,8 @@ class JacobiPolynomial {
   // at the left endpoint.  Golub's modification: solve (J_m - x1 I) d =
   // beta_m^2 e_m and replace the trailing diagonal entry by x1 + d_m.
   auto GaussRadauQuadrature(int n) const {
-    assert(n > 1);
+    Internal::Require(n > 1, "Gauss-Radau quadrature needs at least two points",
+                      n);
     const auto m = n - 1;
 
     auto b = Diagonal(m);
@@ -143,7 +147,8 @@ class JacobiPolynomial {
   // (J_m - x2 I) u = e_m, then beta_m^2 = (x2 - x1) / (g_m - u_m) and the
   // trailing diagonal entry is x1 + g_m beta_m^2.
   auto GaussLobattoQuadrature(int n) const {
-    assert(n > 1);
+    Internal::Require(n > 1,
+                      "Gauss-Lobatto quadrature needs at least two points", n);
     const auto m = n - 1;
 
     const auto e = OffDiagonal(m);
@@ -274,7 +279,7 @@ class LegendrePolynomial {
 
   // The Gauss rule, by either algorithm; see Method above.
   auto GaussQuadrature(int n, Method method = Method::GolubWelsch) const {
-    assert(n > 0);
+    Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
     if (method == Method::GlaserLiuRokhlin) {
       return Internal::GaussLegendreGLR<Real>(n);
     }
@@ -332,7 +337,7 @@ class LaguerrePolynomial {
   LaguerrePolynomial() : _alpha{0} {}
   explicit LaguerrePolynomial(Real alpha) : _alpha{alpha} {
     // The weight is integrable only for alpha > -1.
-    assert(alpha > -1);
+    Internal::Require(alpha > -1, "Laguerre alpha must exceed -1", alpha);
   }
 
   // Evaluation by upwards recursion:
@@ -359,7 +364,7 @@ class LaguerrePolynomial {
 
   // Points and weights for Gauss-Laguerre quadrature.
   auto GaussQuadrature(int n) const {
-    assert(n > 0);
+    Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
     auto d = std::vector<Real>(n);
     for (auto i = 0; i < n; i++) d[i] = 2 * i + _alpha + 1;
     auto e = std::vector<Real>(n > 0 ? n - 1 : 0);
@@ -404,7 +409,7 @@ class HermitePolynomial {
 
   // Points and weights for Gauss-Hermite quadrature.
   auto GaussQuadrature(int n) const {
-    assert(n > 0);
+    Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
     auto d = std::vector<Real>(n, static_cast<Real>(0));
     auto e = std::vector<Real>(n > 0 ? n - 1 : 0);
     for (auto i = 0; i + 1 < n; i++) {

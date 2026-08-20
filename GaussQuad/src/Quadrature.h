@@ -10,6 +10,7 @@
 #include <utility>
 #include <version>
 
+#include "Checks.h"
 #include "NumericConcepts/Functions.hpp"
 #include "NumericConcepts/Numeric.hpp"
 #include "OrthogonalPolynomial.h"
@@ -36,8 +37,10 @@ class Quadrature1D {
   // Constructor given pair of vectors for points and weights.
   Quadrature1D(VectorPair pair)
       : _x{std::move(std::get<0>(pair))}, _w{std::move(std::get<1>(pair))} {
-    assert(_x.size() > 0);
-    assert(_x.size() == _w.size());
+    Internal::Require(!_x.empty(), "a quadrature rule needs at least one point",
+                      _x.size());
+    Internal::Require(_x.size() == _w.size(),
+                      "points and weights differ in length", _w.size());
   }
 
   // Return the number of points.
