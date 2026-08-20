@@ -90,14 +90,21 @@ for (auto [x, w] : q.Nodes()) total += w * f(x);
 
 Note that the weight function belongs to the rule, not to the integrand:
 `Integrate(f)` returns `∫ w(x) f(x) dx`, which is the plain integral of `f`
-only for the Legendre rules.
+only for the Legendre rules. The integrand may return any type that is
+closed under addition and under multiplication by `Real`, including
+expression-template types such as Eigen vectors.
+
+Arguments are checked: building a rule with a degree that is too small, or a
+weight that is not integrable, throws `std::invalid_argument` rather than
+returning something quietly wrong.
 
 Factory functions exist for the Gauss, Radau and Lobatto rules of the Legendre,
 Chebyshev and general Jacobi weights, and for Gauss–Laguerre and Gauss–Hermite:
 
 ```cpp
-auto l = GaussQuad::GaussLaguerreQuadrature1D<double>(n, alpha); // ∫₀^∞ xᵃe⁻ˣ f
-auto h = GaussQuad::GaussHermiteQuadrature1D<double>(n);         // ∫₋∞^∞ e⁻ˣ² f
+auto l = GaussQuad::GaussLaguerreQuadrature1D<double>(n, alpha);      // ∫₀^∞ xᵃe⁻ˣ f
+auto r = GaussQuad::GaussRadauLaguerreQuadrature1D<double>(n, alpha); // …node at 0
+auto h = GaussQuad::GaussHermiteQuadrature1D<double>(n);              // ∫₋∞^∞ e⁻ˣ² f
 ```
 
 ## Building

@@ -365,21 +365,54 @@ class LaguerrePolynomial {
   // Points and weights for Gauss-Laguerre quadrature.
   auto GaussQuadrature(int n) const {
     Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
-    auto d = std::vector<Real>(n);
-    for (auto i = 0; i < n; i++) d[i] = 2 * i + _alpha + 1;
-    auto e = std::vector<Real>(n > 0 ? n - 1 : 0);
-    for (auto i = 0; i + 1 < n; i++) {
-      const auto k = static_cast<Real>(i + 1);
-      e[i] = std::sqrt(k * (k + _alpha));
-    }
-    using std::exp;
-    using std::lgamma;
-    return Internal::GolubWelsch(std::move(d), std::move(e),
-                                 exp(lgamma(_alpha + 1)));
+    return Internal::GolubWelsch(Diagonal(n), OffDiagonal(n), Mu());
+  }
+
+  // Points and weights for Gauss-Radau-Laguerre quadrature, with a node fixed
+  // at the origin -- the natural fixed endpoint for a semi-infinite domain.
+  // Golub's modification, exactly as for the Jacobi weights, with x1 = 0.
+  auto GaussRadauQuadrature(int n) const {
+    Internal::Require(n > 1, "Gauss-Radau quadrature needs at least two points",
+                      n);
+    const auto m = n - 1;
+
+    // The shift is zero, so the system is J_m itself, which is positive
+    // definite because the Laguerre nodes are positive.
+    auto y = std::vector<Real>(m, static_cast<Real>(0));
+    y[m - 1] = E(m) * E(m);
+    const auto delta = Internal::SolveSymmetricTridiagonal(
+        Diagonal(m), OffDiagonal(m), y)[m - 1];
+
+    auto d = Diagonal(n);
+    d[m] = delta;
+    auto rule = Internal::GolubWelsch(std::move(d), OffDiagonal(n), Mu());
+    // The fixed node is known exactly.
+    rule.first.front() = 0;
+    return rule;
   }
 
  private:
   Real _alpha;
+
+  // Integral of the weight, and the entries of the Jacobi matrix, the latter
+  // indexed from one.
+  Real Mu() const {
+    using std::exp;
+    using std::lgamma;
+    return exp(lgamma(_alpha + 1));
+  }
+  Real D(int n) const { return 2 * n + _alpha - 1; }
+  Real E(int n) const { return std::sqrt(static_cast<Real>(n) * (n + _alpha)); }
+  std::vector<Real> Diagonal(int n) const {
+    auto d = std::vector<Real>(n);
+    for (auto i = 0; i < n; i++) d[i] = D(i + 1);
+    return d;
+  }
+  std::vector<Real> OffDiagonal(int n) const {
+    auto e = std::vector<Real>(n > 0 ? n - 1 : 0);
+    for (auto i = 0; i + 1 < n; i++) e[i] = E(i + 1);
+    return e;
+  }
 };
 
 // Hermite polynomials, orthogonal on the whole real line with respect to the

@@ -19,11 +19,16 @@ namespace GaussQuad {
 
 // Concept for functions that can be integrated using quadrature.
 template <typename Real, typename Function, typename FunctionValue>
+// Convertibility rather than identity: an expression-template type -- an
+// Eigen vector, say -- returns a proxy from operator* and operator+ rather
+// than itself, and requiring identity here rejected every such integrand for
+// no reason.  Integrate names FunctionValue as the return type of its
+// combining step, so the proxy is evaluated there.
 concept Integrable = requires(Real w, FunctionValue f) {
   requires NumericConcepts::Real<Real>;
   requires NumericConcepts::Function<Function, FunctionValue, Real>;
-  { f* w } -> std::same_as<FunctionValue>;
-  { f + f } -> std::same_as<FunctionValue>;
+  { f* w } -> std::convertible_to<FunctionValue>;
+  { f + f } -> std::convertible_to<FunctionValue>;
 };
 
 template <NumericConcepts::Real Real>
@@ -150,6 +155,12 @@ auto GaussLobattoChebyshevQuadrature1D(int n) {
 template <NumericConcepts::Real Real>
 auto GaussLaguerreQuadrature1D(int n, Real alpha = 0) {
   return Quadrature1D(LaguerrePolynomial<Real>{alpha}.GaussQuadrature(n));
+}
+
+// Gauss-Radau-Laguerre: as above, with a node fixed at the origin.
+template <NumericConcepts::Real Real>
+auto GaussRadauLaguerreQuadrature1D(int n, Real alpha = 0) {
+  return Quadrature1D(LaguerrePolynomial<Real>{alpha}.GaussRadauQuadrature(n));
 }
 
 // Gauss-Hermite: integrates exp(-x^2) f(x) over the whole real line.

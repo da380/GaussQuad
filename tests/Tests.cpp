@@ -415,6 +415,35 @@ TEST(Laguerre, ClosedFormTwoPoint) {
   EXPECT_NEAR(q.W(1), (2 - r) / 4, tol<double>);
 }
 
+TEST(Laguerre, RadauMoments) {
+  using Real = double;
+  // Gauss-Radau-Laguerre is exact to degree 2n-2, with a node fixed at zero.
+  for (auto alpha : {0.0, 1.5, -0.5}) {
+    for (auto n : {2, 3, 8, 40, 120}) {
+      const auto q = GaussQuad::GaussRadauLaguerreQuadrature1D<Real>(n, alpha);
+      EXPECT_EQ(q.X(0), 0.0) << "alpha = " << alpha << ", n = " << n;
+      for (auto i = 1; i < n; i++) EXPECT_GT(q.X(i), 0.0);
+      for (auto k = 0; k <= std::min(2 * n - 2, 12); k++) {
+        long double sum = 0;
+        for (auto i = 0; i < n; i++)
+          sum += static_cast<long double>(q.W(i)) * std::pow(q.X(i), k);
+        const auto exact = std::exp(std::lgamma(alpha + k + 1));
+        EXPECT_NEAR(static_cast<double>(sum) / exact, 1.0, 1e-13)
+            << "alpha = " << alpha << ", n = " << n << ", k = " << k;
+      }
+    }
+  }
+}
+
+TEST(Laguerre, RadauClosedFormTwoPoint) {
+  // Exact for degree 2, so w0+w1 = 1, w1 x1 = 1, w1 x1^2 = 2: {0,2},{1/2,1/2}.
+  const auto q = GaussQuad::GaussRadauLaguerreQuadrature1D<double>(2);
+  EXPECT_EQ(q.X(0), 0.0);
+  EXPECT_NEAR(q.X(1), 2.0, tol<double>);
+  EXPECT_NEAR(q.W(0), 0.5, tol<double>);
+  EXPECT_NEAR(q.W(1), 0.5, tol<double>);
+}
+
 TEST(Hermite, Moments) {
   using Real = double;
   // sum_i w_i x_i^(2m) = int exp(-x^2) x^(2m) dx = Gamma(m+1/2); odd
@@ -523,6 +552,32 @@ TEST(Api, NodesView) {
   EXPECT_NEAR(sum, 2.0 / 3.0, tol<double>);
 }
 #endif
+
+// An expression-template value type: operator* and operator+ return a proxy
+// rather than the value type, as Eigen's do.  The Integrable concept used to
+// require identity and so rejected every such integrand.
+namespace {
+struct Proxy {
+  double a, b;
+};
+struct Vec2 {
+  double a{}, b{};
+  Vec2() = default;
+  Vec2(double x, double y) : a{x}, b{y} {}
+  Vec2(Proxy p) : a{p.a}, b{p.b} {}
+};
+inline Proxy operator*(const Vec2& v, double w) { return {v.a * w, v.b * w}; }
+inline Proxy operator+(const Vec2& x, const Vec2& y) {
+  return {x.a + y.a, x.b + y.b};
+}
+}  // namespace
+
+TEST(Api, IntegratesExpressionTemplateValues) {
+  const auto q = GaussQuad::GaussLegendreQuadrature1D<double>(8);
+  const Vec2 r = q.Integrate([](double x) { return Vec2{x * x, 1.0}; });
+  EXPECT_NEAR(r.a, 2.0 / 3.0, 1e-14);
+  EXPECT_NEAR(r.b, 2.0, 1e-14);
+}
 
 // ---------------------------------------------------------------------------
 // Argument checking.  These used to be assertions, so in a release build a
