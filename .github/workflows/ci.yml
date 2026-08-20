@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.compiler }} / ${{ matrix.build_type }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++-13, g++-14]
+        build_type: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      # Release matters as much as Debug here: argument checking throws rather
+      # than asserting precisely so that it survives -DNDEBUG.
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --parallel
+
+  package:
+    name: install and find_package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install to a prefix
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_INSTALL_PREFIX="$PWD/prefix" \
+                -DGAUSSQUAD_BUILD_TESTS=OFF -DGAUSSQUAD_BUILD_EXAMPLES=OFF
+          cmake --build build --parallel
+          cmake --install build
+
+      # A consumer that resolves GaussQuad only through find_package, so that
+      # a broken export set fails here rather than downstream.
+      - name: Consume through find_package
+        run: |
+          mkdir -p consumer
+          cat > consumer/CMakeLists.txt <<'CM'
+          cmake_minimum_required(VERSION 3.15)
+          project(Consumer LANGUAGES CXX)
+          find_package(GaussQuad REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE GaussQuad::GaussQuad)
+          CM
+          cat > consumer/main.cpp <<'CPP'
+          #include <GaussQuad/All>
+          #include <cmath>
+          #include <cstdio>
+          int main() {
+            auto q = GaussQuad::GaussLegendreQuadrature1D<double>(64);
+            double s = 0;
+            for (auto w : q.Weights()) s += w;
+            std::printf("sum(w) = %.17g\n", s);
+            return std::abs(s - 2.0) < 1e-13 ? 0 : 1;
+          }
+          CPP
+          cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH="$PWD/prefix"
+          cmake --build consumer/build
+          ./consumer/build/consumer

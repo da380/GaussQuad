@@ -132,8 +132,12 @@ void CheckRule(Rule r, int n, Real alpha, Real beta) {
 
   // Fixed nodes must be exactly the endpoints, not merely close to them:
   // adjacent spectral elements have to agree on a shared node bit for bit.
-  if (r == Rule::Radau || r == Rule::Lobatto) EXPECT_EQ(x.front(), Real(-1));
-  if (r == Rule::Lobatto) EXPECT_EQ(x.back(), Real(1));
+  if (r == Rule::Radau || r == Rule::Lobatto) {
+    EXPECT_EQ(x.front(), Real(-1));
+  }
+  if (r == Rule::Lobatto) {
+    EXPECT_EQ(x.back(), Real(1));
+  }
 
   // Identity 1: the weights sum to the integral of the weight function.
   auto sum = Real(0);
@@ -300,7 +304,9 @@ TEST(Zeros, MatchesGaussNodes) {
       EXPECT_NEAR(z[i], x[i], 1e-12) << "n = " << n << ", i = " << i;
       // Distinct roots: deflation exists to prevent Newton returning to one
       // it has already found.
-      if (i > 0) EXPECT_LT(z[i - 1], z[i]) << "n = " << n << ", i = " << i;
+      if (i > 0) {
+        EXPECT_LT(z[i - 1], z[i]) << "n = " << n << ", i = " << i;
+      }
     }
   }
 }
@@ -349,7 +355,9 @@ TYPED_TEST(Asymptotic, StructureAndIdentities) {
       ASSERT_TRUE(std::isfinite(w[i]));
       EXPECT_GT(w[i], Real(0));
       EXPECT_LE(std::abs(x[i]), Real(1));
-      if (i > 0) EXPECT_LT(x[i - 1], x[i]);
+      if (i > 0) {
+        EXPECT_LT(x[i - 1], x[i]);
+      }
     }
     // The weights drift as O(n*eps) here, unlike Golub-Welsch; allow for it
     // rather than pretending the two algorithms have the same error growth.

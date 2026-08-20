@@ -34,8 +34,11 @@ option(GAUSSQUAD_BUILD_EXAMPLES "Build the GaussQuad examples" ${GAUSSQUAD_IS_TO
 option(GAUSSQUAD_BUILD_TESTS    "Build the GaussQuad tests"    ${GAUSSQUAD_IS_TOP_LEVEL})
 option(GAUSSQUAD_INSTALL        "Generate the GaussQuad install rules" ON)
 
-set(GAUSSQUAD_NUMERICCONCEPTS_TAG "main" CACHE STRING
-    "Git tag of NumericConcepts to fetch if it is not already available")
+# Pinned rather than tracking a branch, so that an upstream change cannot
+# break this project without anything here having changed.  Override to move
+# it, or install NumericConcepts yourself and find_package will prefer that.
+set(GAUSSQUAD_NUMERICCONCEPTS_TAG "888126b" CACHE STRING
+    "Git tag or commit of NumericConcepts to fetch if none is installed")
 
 # --- Dependencies -----------------------------------------------------------
 #

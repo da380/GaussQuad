@@ -1,7 +1,8 @@
 # GaussQuad: status and remaining work
 
 Originally a hand-over document assessing `da380/GaussQuad@main` as fetched on
-2026-08-20. **Rewritten 2026-08-20** after the work below was carried out.
+2026-08-20. **Rewritten 2026-08-20** after the work below was carried out, and
+updated again as the follow-up list was worked through.
 Everything quoted was measured on this machine, not inferred.
 
 Baseline for comparison is commit `fbe37c7`, and the release `v1.0.0` is
@@ -144,52 +145,74 @@ options renamed; googletest pinned; the committed emacs autosave
 
 ---
 
+### Follow-up work
+
+- **Argument checking.** Anything that builds a rule now validates and throws
+  `std::invalid_argument`; the evaluation functions keep assertions. Previously
+  all of it was `assert`, so in a release build -- which is how everything
+  depending on this is compiled -- a bad degree or a non-integrable weight was
+  silently undefined. The tests for it are built with `NDEBUG` so they exercise
+  the release configuration.
+- **Gauss-Radau-Laguerre**, node fixed at the origin. Golub's modification with
+  `x1 = 0`, so the shifted system is `J_m` itself, positive definite because
+  the Laguerre nodes are. Checked against the closed form at `n = 2` -- nodes
+  `{0,2}`, weights `{1/2,1/2}` -- and against the moment identity to `2n-2`.
+- **The `Integrable` concept** required `f*w` and `f+f` to be exactly
+  `FunctionValue`, which rejected every expression-template integrand (an
+  Eigen vector returns a proxy from those operators). Now convertibility;
+  types with no arithmetic at all are still rejected.
+- **NumericConcepts pinned** to `888126b` rather than tracking `main`, through
+  the overridable `GAUSSQUAD_NUMERICCONCEPTS_TAG`. Only affects the fetch
+  fallback -- `find_package` still prefers an installed copy.
+- **CI** (`.github/workflows/ci.yml`): build and test under g++-13 and g++-14
+  in Debug and Release, plus a job that installs to a prefix and builds a
+  consumer resolving GaussQuad only through `find_package`, so a broken export
+  set fails there rather than downstream.
+
+---
+
 ## 2. Still open
 
-Nothing here is blocking; this is the list to pick from on returning.
+Nothing here is blocking. Items resolved since the first revision are recorded
+with the decision, so they are not reopened by accident.
 
-1. **Not committed.** The work is in the working tree only.
+### Decided, deliberately not changed
 
-2. **Version number.** Currently `1.1.0` in `CMakeLists.txt`, on the grounds
-   that the API is unchanged and purely additive. Arguable: node values move in
-   the last few ulps and the Chebyshev rules go from `NaN` to correct, so
-   `2.0.0` is defensible. Decision not taken.
+- **Version stays `1.1.0`.** The API is unchanged and every addition is
+  additive. Node values do move in the last few ulps and the Chebyshev rules go
+  from `NaN` to correct, which is the argument for `2.0.0`; `v1.0.0` is tagged,
+  so anything needing the old values can pin it.
+- **`Transform` keeps its Jacobian convention.** The points are mapped first
+  and `df` is evaluated at the *mapped* points, so it must be a function of the
+  new variable -- verified with `y = x^3`, where supplying `df` of the old
+  variable gives `0.4615` instead of `0.6667`. It is documented in place, and
+  the interval factories mean the common case never meets it. Deliberately
+  **not** marked `[[deprecated]]`: GSHTrans calls it, and that would fill its
+  build with warnings for no gain.
+- **GLR's `O(n*eps)` weight drift stays.** It comes from forming
+  `w = 2/((1-x^2) P'^2)` from the marched derivative. It could be hidden by
+  rescaling the weights to sum to `mu0` exactly, but that would also make the
+  weight-sum test vacuous for that algorithm, which is too high a price for a
+  cosmetic fix. `GolubWelsch` is the default and does not drift.
+- **`Zeros` keeps its Newton implementation.** Measured, it agrees with
+  `GaussQuadrature` to `1.6e-15` at `n = 1025` -- so it is *slower*, about
+  sevenfold, not less accurate, and the header comment claiming otherwise has
+  been corrected. It is now the only code path in the library that does not go
+  through the eigensolver, and the suite checks the two against each other:
+  two implementations sharing no code and agreeing is evidence neither is
+  wrong. That is worth more than the lines it costs.
 
-3. **`Transform`'s Jacobian convention.** Left exactly as it was for
-   compatibility, and now documented: the points are mapped first and `df` is
-   evaluated at the *mapped* points, so it must be a function of the new
-   variable. Verified with `y = x^3`: supplying `df` of the old variable gives
-   `0.4615` instead of `0.6667`. Nobody has hit it because affine maps have
-   constant `df`. The interval factories side-step it; deprecating `Transform`
-   in favour of them is a possible next step.
+### Genuinely open
 
-4. **`assert` for argument validation.** In a release build a bad `n` is
-   silently undefined rather than diagnosed. Throwing, or documenting the
-   precondition, would be better for a library.
-
-5. **`GIT_TAG main`** still for NumericConcepts (default of the
-   `GAUSSQUAD_NUMERICCONCEPTS_TAG` cache variable) and Interpolation
-   (test-only). Pin when those projects start tagging releases.
-
-6. **GLR weight drift.** `O(n*eps)` against Golub–Welsch's flat error. It comes
-   from forming `w = 2/((1-x^2) P'^2)` from the marched derivative. Bogaert's
-   weight expansion would not drift; whether that is worth the coefficient
-   tables is the same trade-off declined above.
-
-7. **`Zeros()` is still `O(n^2)`** Newton with recurrence evaluation. Its
-   result is by definition the Gauss nodes, so it could simply delegate to
-   `GaussQuadrature` and be both faster and more accurate. Kept as-is because
-   it is existing public API with its own semantics; the deflation bug in it is
-   fixed and it is now tested against the Gauss nodes.
-
-8. **Gauss–Radau–Laguerre** (node fixed at `x = 0`) would be a natural
-   addition for semi-infinite spectral domains; the machinery is already in
-   place. Lobatto does not apply to an unbounded interval.
-
-9. **`Integrable` concept** requires `f*w` and `f+f` to be *exactly*
-   `FunctionValue`, which rejects expression-template types such as Eigen
-   vectors. Deliberate, but worth revisiting if vector-valued integrands are
-   ever wanted.
-
-10. **Downstream.** GSHTrans can now be given install/export rules of its own,
-    which was blocked by this library.
+1. **Interpolation is still fetched at `GIT_TAG main`.** Test-only, and it has
+   no tags to pin to. Pin when it gets a release.
+2. **CI covers only g++-13 and g++-14**, because no clang is installed on the
+   development machine and an unverified matrix leg would just fail on first
+   push. Adding `clang++-18` is a one-line change once it can be tested. The
+   `Nodes()` view is already guarded on `__cpp_lib_ranges_zip`, so a standard
+   library without `std::views::zip` degrades rather than breaks.
+3. **Downstream.** GSHTrans can now be given install and export rules of its
+   own, which this library was blocking. That is the next piece of work, and it
+   is in the other repository.
+4. **Not tagged.** The work is committed on `develop`; no release tag has been
+   made and `main` has not been updated.
