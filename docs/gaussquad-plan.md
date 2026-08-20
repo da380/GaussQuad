@@ -206,6 +206,13 @@ with the decision, so they are not reopened by accident.
 
 1. **Interpolation is still fetched at `GIT_TAG main`.** Test-only, and it has
    no tags to pin to. Pin when it gets a release.
+
+   Note, because it looks alarming otherwise: a test build still downloads and
+   configures Eigen. That is Interpolation's dependency, pulled in transitively
+   by the test target. The library itself is clean -- the installed
+   `GaussQuadTargets.cmake` links `NumericConcepts::NumericConcepts` and
+   nothing else, and configuring with `-DGAUSSQUAD_BUILD_TESTS=OFF` fetches no
+   Eigen at all.
 2. **CI covers only g++-13 and g++-14**, because no clang is installed on the
    development machine and an unverified matrix leg would just fail on first
    push. Adding `clang++-18` is a one-line change once it can be tested. The
