@@ -1,6 +1,9 @@
 #ifndef GAUSS_QUAD_GLASER_LIU_ROKHLIN_GUARD_H
 #define GAUSS_QUAD_GLASER_LIU_ROKHLIN_GUARD_H
 
+/// \file GlaserLiuRokhlin.h
+/// \brief The O(n) Gauss-Legendre algorithm of Glaser, Liu and Rokhlin.
+
 #include <cmath>
 #include <limits>
 #include <numbers>
@@ -15,30 +18,42 @@ namespace GaussQuad {
 
 namespace Internal {
 
-// Gauss-Legendre nodes and weights in O(n) time and O(n) storage, by the
-// method of Glaser, Liu and Rokhlin (2007).
-//
-// P_n satisfies the Legendre equation (1-x^2)y'' - 2xy' + n(n+1)y = 0.  Write
-// u(h) = P_n(x + h) about some point x, and put c = 1 - x^2 and b = -2x; the
-// equation becomes
-//
-//   (c + b h - h^2) u'' + (b - 2h) u' + lambda u = 0,   lambda = n(n+1),
-//
-// and collecting powers of h gives the Taylor recurrence
-//
-//   u_{m+2} = -[ b (m+1)^2 u_{m+1} + (lambda - m(m+1)) u_m ] / [c (m+2)(m+1)].
-//
-// So the whole local behaviour of P_n follows from the pair (u_0, u_1) at a
-// single point, at O(1) cost.  Starting from the known values at x = 0, each
-// root is found by Newton on that local series and then becomes the expansion
-// point for the next -- at a root u_0 = 0, so only P_n'(x_k) has to be
-// carried.  Marching over the roots in (0,1) and reflecting gives all n of
-// them in O(n) work, with the polynomial never evaluated by recurrence.
-//
-// Compared with Golub-Welsch this trades a little accuracy for a lot of
-// speed: the nodes agree to about 1e-15, but the weights drift as O(n*eps)
-// rather than staying flat, so the sum of the weights is near 1e-13 by
-// n = 16385, where it costs about 2 ms against Golub-Welsch's 5 s.
+/// \brief Gauss-Legendre nodes and weights in O(n) time and O(n) storage, by
+///        the method of Glaser, Liu and Rokhlin (2007).
+///
+/// \f$P_n\f$ satisfies the Legendre equation
+/// \f$(1-x^2)y'' - 2xy' + n(n+1)y = 0\f$.  Write \f$u(h) = P_n(x + h)\f$
+/// about some point \f$x\f$, and put \f$c = 1 - x^2\f$, \f$b = -2x\f$;
+/// the equation becomes
+///
+/// \f[ (c + bh - h^2)\,u'' + (b - 2h)\,u' + \lambda u = 0, \qquad
+///     \lambda = n(n+1), \f]
+///
+/// and collecting powers of \f$h\f$ gives the Taylor recurrence
+///
+/// \f[ u_{m+2} = -\frac{b(m+1)^2 u_{m+1} + (\lambda - m(m+1))u_m}
+///                     {c(m+2)(m+1)}. \f]
+///
+/// So the whole local behaviour of \f$P_n\f$ follows from the pair
+/// \f$(u_0, u_1)\f$ at a single point, at \f$O(1)\f$ cost.  Starting from
+/// the known values at \f$x = 0\f$, each root is found by Newton on that
+/// local series and then becomes the expansion point for the next -- at a
+/// root \f$u_0 = 0\f$, so only \f$P_n'(x_k)\f$ has to be carried.  Marching
+/// over the roots in \f$(0,1)\f$ and reflecting gives all \f$n\f$ of them in
+/// \f$O(n)\f$ work, with the polynomial never evaluated by recurrence.
+///
+/// Compared with GolubWelsch this trades a little accuracy for a lot of
+/// speed: the nodes agree to about `1e-15`, but the weights drift as
+/// \f$O(n\epsilon)\f$ rather than staying flat, so their sum is near `1e-13`
+/// by `n = 16385`, where it costs about 2 ms against Golub-Welsch's 4 s.
+///
+/// \tparam Real A real floating-point type.
+/// \param n Number of points; must be positive.
+/// \return The nodes, in ascending order, and the corresponding weights.
+/// \throws std::invalid_argument If \p n is not positive.
+/// \throws std::runtime_error If the Newton iteration fails to converge, if
+///         the march produces an invalid rule, or if \p n is too large for
+///         \p Real -- see the note on the precision ceiling below.
 template <NumericConcepts::Real Real>
 std::pair<std::vector<Real>, std::vector<Real>> GaussLegendreGLR(int n) {
   Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
@@ -144,9 +159,24 @@ std::pair<std::vector<Real>, std::vector<Real>> GaussLegendreGLR(int n) {
     for (auto m = order; m >= 1; m--) der = der * t + m * u[m];
     der /= scale;
 
+    // Form 1 - x^2 as (1-x)(1+x): for a root near the endpoint, 1 - x is
+    // exact where 1 - x*x loses most of its digits to cancellation.
+    //
+    // That quantity is O(1/n^2) at the outermost nodes, and once n is large
+    // enough for it to underflow -- in float, around n = 10^4 -- the node is
+    // no longer distinguishable from the endpoint and its weight is not
+    // representable.  Golub-Welsch has no such limit, so say so rather than
+    // returning an infinity.
+    const auto c1 = (1 - root) * (1 + root);
+    if (!(c1 > 0)) {
+      throw std::runtime_error(
+          "GaussQuad: n is too large for Method::GlaserLiuRokhlin at this "
+          "precision; use Method::GolubWelsch");
+    }
+
     const auto i = (odd ? half + 1 : half) + k;
     x[i] = root;
-    w[i] = 2 / ((1 - root * root) * der * der);
+    w[i] = 2 / (c1 * der * der);
 
     // The new root becomes the next expansion point; there u_0 vanishes.
     centre = root;
@@ -169,9 +199,13 @@ std::pair<std::vector<Real>, std::vector<Real>> GaussLegendreGLR(int n) {
 
   // The march is the one part of this that could go quietly wrong: a Newton
   // step landing on a root that has already been found would give a rule that
-  // still looks plausible.  Check that it did not.
-  for (auto i = 1; i < n; i++) {
-    if (!(x[i - 1] < x[i]) || !(abs(x[i]) <= 1) || !(w[i] > 0)) {
+  // still looks plausible.  Check that it did not.  Every node is checked,
+  // including the first, and the weights are checked for being finite as well
+  // as positive, since an infinity satisfies w > 0.
+  constexpr auto inf = std::numeric_limits<Real>::infinity();
+  for (auto i = 0; i < n; i++) {
+    if ((i > 0 && !(x[i - 1] < x[i])) || !(abs(x[i]) <= 1) ||
+        !(w[i] > 0 && w[i] < inf)) {
       throw std::runtime_error(
           "GaussQuad: Glaser-Liu-Rokhlin produced an invalid rule");
     }

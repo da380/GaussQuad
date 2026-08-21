@@ -1,6 +1,10 @@
 #ifndef GAUSS_QUAD_TRIDIAGONAL_EIGEN_GUARD_H
 #define GAUSS_QUAD_TRIDIAGONAL_EIGEN_GUARD_H
 
+/// \file TridiagonalEigen.h
+/// \brief The symmetric tridiagonal solvers the Golub-Welsch construction
+///        needs: a Thomas solve and a first-row-only QL eigensolver.
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -16,11 +20,21 @@ namespace GaussQuad {
 
 namespace Internal {
 
-// Solve T u = y, with T the symmetric tridiagonal matrix having diagonal
-// d[0..m-1] and off-diagonal e[0..m-2], by unpivoted LU (the Thomas
-// algorithm).  The only matrices this is applied to are J - xI with x an
-// endpoint of the support of the weight function, which are definite, so no
-// pivoting is needed.  d and y are taken by value and used as scratch.
+/// \brief Solve a symmetric tridiagonal system by unpivoted LU, the Thomas
+///        algorithm, in O(m) time and no extra storage.
+///
+/// Solves \f$T u = y\f$, with \f$T\f$ the symmetric tridiagonal matrix
+/// having diagonal `d[0..m-1]` and off-diagonal `e[0..m-2]`.
+///
+/// The only matrices this is applied to are \f$J - xI\f$ with \f$x\f$ an
+/// endpoint of the support of the weight function.  Those are definite -- the
+/// shift lies outside the spectrum -- so no pivoting is needed.
+///
+/// \tparam Real A real floating-point type.
+/// \param d Diagonal entries, taken by value and used as scratch.
+/// \param e Off-diagonal entries; at least `m - 1` of them.
+/// \param y Right-hand side, taken by value and used as scratch.
+/// \return The solution vector, of the same length as \p d.
 template <NumericConcepts::Real Real>
 std::vector<Real> SolveSymmetricTridiagonal(std::vector<Real> d,
                                             const std::vector<Real>& e,
@@ -39,21 +53,30 @@ std::vector<Real> SolveSymmetricTridiagonal(std::vector<Real> d,
   return y;
 }
 
-// Nodes and weights of the Gaussian quadrature rule belonging to a set of
-// three-term recurrence coefficients, by the method of Golub and Welsch: the
-// nodes are the eigenvalues of the symmetric tridiagonal Jacobi matrix with
-// diagonal d[0..n-1] and off-diagonal e[0..n-2], and the weights are
-// mu0 * q_i^2, where q_i is the first component of the ith normalised
-// eigenvector and mu0 the integral of the weight function.
-//
-// The eigenproblem is solved by implicit QL with Wilkinson shifts, as in the
-// classic tql2/imtql2 routines, with one change: only the FIRST ROW of the
-// eigenvector matrix is accumulated.  That is all Golub-Welsch needs, and it
-// takes the cost from O(n^3) time and O(n^2) storage down to O(n^2) and O(n).
-//
-// Because the accumulated row is acted on only by plane rotations, its
-// Euclidean norm is preserved, and so the weights sum to mu0 to within a few
-// rounding errors at any n.
+/// \brief Nodes and weights of a Gauss rule from its three-term recurrence
+///        coefficients, by the method of Golub and Welsch.
+///
+/// The nodes are the eigenvalues of the symmetric tridiagonal Jacobi matrix
+/// with diagonal `d[0..n-1]` and off-diagonal `e[0..n-2]`, and the weights are
+/// \f$w_i = \mu_0 q_i^2\f$, where \f$q_i\f$ is the first component of the
+/// \f$i\f$th normalised eigenvector.
+///
+/// The eigenproblem is solved by implicit QL with Wilkinson shifts, as in the
+/// classic `tql2`/`imtql2` routines, with one change: only the **first row**
+/// of the eigenvector matrix is accumulated.  That is all Golub-Welsch needs,
+/// and it takes the cost from \f$O(n^3)\f$ time and \f$O(n^2)\f$ storage
+/// down to \f$O(n^2)\f$ and \f$O(n)\f$.
+///
+/// Because the accumulated row is acted on only by plane rotations, which
+/// preserve its Euclidean norm, the weights sum to \f$\mu_0\f$ to within a
+/// few rounding errors at any \f$n\f$, rather than drifting with \f$n\f$.
+///
+/// \tparam Real A real floating-point type.
+/// \param d Diagonal of the Jacobi matrix, taken by value and used as scratch.
+/// \param e Off-diagonal of the Jacobi matrix; at least `n - 1` entries.
+/// \param mu0 The integral of the weight function over its support.
+/// \return The nodes, in ascending order, and the corresponding weights.
+/// \throws std::runtime_error If the QL iteration fails to converge.
 template <NumericConcepts::Real Real>
 std::pair<std::vector<Real>, std::vector<Real>> GolubWelsch(std::vector<Real> d,
                                                             std::vector<Real> e,

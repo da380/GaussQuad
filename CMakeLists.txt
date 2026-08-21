@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 project(GaussQuad
-  VERSION 1.1.0
+  VERSION 1.1.1
   DESCRIPTION "Header-only C++ library for Gaussian quadrature"
   LANGUAGES CXX)
 
@@ -33,6 +33,7 @@ endif()
 option(GAUSSQUAD_BUILD_EXAMPLES "Build the GaussQuad examples" ${GAUSSQUAD_IS_TOP_LEVEL})
 option(GAUSSQUAD_BUILD_TESTS    "Build the GaussQuad tests"    ${GAUSSQUAD_IS_TOP_LEVEL})
 option(GAUSSQUAD_INSTALL        "Generate the GaussQuad install rules" ON)
+option(GAUSSQUAD_BUILD_DOCS     "Add a target building the Doxygen manual" OFF)
 
 # Pinned rather than tracking a branch, so that an upstream change cannot
 # break this project without anything here having changed.  Override to move
@@ -120,4 +121,31 @@ endif()
 if(GAUSSQUAD_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
+endif()
+
+# The Doxygen manual, built on demand rather than as part of ALL: it is slow
+# next to a header-only library that otherwise compiles nothing, and it is not
+# wanted by anyone merely consuming the headers.  Off by default for the same
+# reason, so that a missing Doxygen is never an error unless it was asked for.
+if(GAUSSQUAD_BUILD_DOCS)
+  find_package(Doxygen REQUIRED)
+
+  set(GAUSSQUAD_DOXYGEN_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/docs)
+
+  # Graphviz is optional; without it Doxygen falls back to text where it would
+  # otherwise draw a diagram.
+  if(TARGET Doxygen::dot)
+    set(GAUSSQUAD_DOXYGEN_HAVE_DOT YES)
+  else()
+    set(GAUSSQUAD_DOXYGEN_HAVE_DOT NO)
+  endif()
+
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
+
+  add_custom_target(docs
+    COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Building the Doxygen manual in ${GAUSSQUAD_DOXYGEN_OUTPUT_DIR}/html"
+    VERBATIM)
 endif()

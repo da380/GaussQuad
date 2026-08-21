@@ -1,0 +1,59 @@
+# Doxygen configuration for GaussQuad.
+#
+# Configured by CMake into the build tree; see GAUSSQUAD_BUILD_DOCS.  Only the
+# settings that differ from the Doxygen defaults are listed, so that this stays
+# readable and survives a Doxygen upgrade.
+
+PROJECT_NAME           = "@PROJECT_NAME@"
+PROJECT_NUMBER         = "@PROJECT_VERSION@"
+PROJECT_BRIEF          = "@PROJECT_DESCRIPTION@"
+OUTPUT_DIRECTORY       = "@GAUSSQUAD_DOXYGEN_OUTPUT_DIR@"
+
+# --- Input ------------------------------------------------------------------
+
+INPUT                  = "@PROJECT_SOURCE_DIR@/GaussQuad" \
+                         "@PROJECT_SOURCE_DIR@/README.md" \
+                         "@PROJECT_SOURCE_DIR@/docs/algorithms.md"
+RECURSIVE              = YES
+
+# All and Polynomial are extensionless module headers, so both the pattern and
+# the language mapping have to name them explicitly.
+FILE_PATTERNS          = *.h *.md All Polynomial
+EXTENSION_MAPPING      = no_extension=C++
+
+STRIP_FROM_PATH        = "@PROJECT_SOURCE_DIR@"
+USE_MDFILE_AS_MAINPAGE = "@PROJECT_SOURCE_DIR@/README.md"
+
+# --- What to document -------------------------------------------------------
+
+# Everything intended for a reader is documented explicitly, so undocumented
+# entities are omissions rather than things to be extracted silently.
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = NO
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = YES
+
+# Declaration order carries meaning here -- constructors, evaluation, then the
+# rules -- so keep it rather than sorting alphabetically.
+SORT_MEMBER_DOCS       = NO
+SORT_BRIEF_DOCS        = NO
+
+# --- Output -----------------------------------------------------------------
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+
+# Formulas are rendered to images by the local LaTeX installation.  MathJax
+# would need a CDN at viewing time, which a locally built manual should not.
+USE_MATHJAX            = NO
+
+# Graphviz is not assumed to be present; CMake turns this on when dot is found.
+HAVE_DOT               = @GAUSSQUAD_DOXYGEN_HAVE_DOT@
+
+# --- Diagnostics ------------------------------------------------------------
+
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_NO_PARAMDOC       = YES

@@ -11,11 +11,11 @@ are all tested.
 
 ## Method
 
-Nodes and weights come from the method of Golub and Welsch [[1]](#1): the nodes
+Nodes and weights come from the method of Golub and Welsch [1]: the nodes
 are the eigenvalues of the symmetric tridiagonal Jacobi matrix of the
 three-term recurrence, and the weights are `mu0 * q_i^2`, where `q_i` is the
 first component of the `i`th normalised eigenvector and `mu0` the integral of
-the weight function. Radau and Lobatto use Golub's modification [[2]](#2), which
+the weight function. Radau and Lobatto use Golub's modification [2], which
 fixes one or both endpoints by adjusting the trailing recurrence coefficients.
 
 The eigenproblem is solved in `src/TridiagonalEigen.h` by implicit QL with
@@ -40,15 +40,15 @@ For Gauss–Legendre specifically there is a second algorithm, selected with
 | `n = 16385` | 4.5 s | 2.4 ms |
 | weights | any | Legendre only |
 
-`GlaserLiuRokhlin` [[3]](#3) never evaluates the polynomial by recurrence: it
+`GlaserLiuRokhlin` [3] never evaluates the polynomial by recurrence: it
 marches from root to root using the local power series that the Legendre
 equation determines, at `O(1)` cost per node. Its nodes agree with
 Golub–Welsch to about `10⁻¹⁵`, so at large `n` it is the faster rule rather
 than the better one — pick it when construction cost matters.
 
 There is deliberately **no automatic switch** between the two. A rule whose
-algorithm changes with `n` is exactly the discontinuity this library used to
-have.
+algorithm changes with `n` has a discontinuity in its node values at the
+switch, which is invisible until something downstream depends on it.
 
 ```cpp
 auto q = GaussQuad::GaussLegendreQuadrature1D<double>(
@@ -117,8 +117,7 @@ ctest --test-dir build
 
 The only dependency is [NumericConcepts](https://github.com/da380/NumericConcepts),
 which is found with `find_package` if installed and fetched otherwise.
-Tests additionally fetch GoogleTest and
-[Interpolation](https://github.com/da380/Interpolation).
+The tests additionally fetch GoogleTest, and nothing else.
 
 To install and consume as a package:
 
@@ -136,19 +135,42 @@ target_link_libraries(your_target PRIVATE GaussQuad::GaussQuad)
 and `GAUSSQUAD_BUILD_EXAMPLES=OFF` to skip the developer targets, which are off
 by default when GaussQuad is not the top-level project.
 
+## Documentation
+
+[`examples/`](examples/) holds eight short programs, each covering one aspect —
+basic integration, intervals, Radau and Lobatto, the weight functions, the two
+algorithms, the polynomials themselves, precision and value types, and error
+handling. They are built by default and land in `build/bin`.
+
+[`docs/algorithms.md`](docs/algorithms.md) sets out how the rules are computed
+— Golub–Welsch and the tridiagonal eigensolver, Golub's modification for Radau
+and Lobatto, the Glaser–Liu–Rokhlin march — together with the measured accuracy
+and cost of each, and the reasoning behind the choices the implementation
+makes.
+
+Doxygen reference pages for the API are built by configuring with
+`-DGAUSSQUAD_BUILD_DOCS=ON` and building the `docs` target:
+
+```
+cmake -S . -B build -DGAUSSQUAD_BUILD_DOCS=ON
+cmake --build build --target docs
+```
+
+which writes `build/docs/html/index.html`.
+
 ## References
 
-<a id="1">[1]</a>
+**[1]**  
 Golub, G. H. and Welsch, J. H., 1969.
 Calculation of Gauss quadrature rules.
 *Mathematics of Computation*, **23**, 221–230.
 
-<a id="2">[2]</a>
+**[2]**  
 Golub, G. H., 1973.
 Some modified matrix eigenvalue problems.
 *SIAM Review*, **15**, 318–334.
 
-<a id="3">[3]</a>
+**[3]**  
 Glaser, A., Liu, X. and Rokhlin, V., 2007.
 A fast algorithm for the calculation of the roots of special functions.
 *SIAM Journal on Scientific Computing*, **29**, 1420–1438.

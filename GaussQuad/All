@@ -1,9 +1,19 @@
 #ifndef GAUSSQUAD_ALL_MODULE_H
 #define GAUSSQUAD_ALL_MODULE_H
 
-// Header files to be included to use the GaussQuad library.
+/// \file All
+/// \brief Umbrella header for the whole library.
+///
+/// Include this to get the orthogonal polynomials, the quadrature rules and
+/// the factory functions that build them:
+/// \code
+/// #include <GaussQuad/All>
+/// auto q = GaussQuad::GaussLegendreQuadrature1D<double>(n);
+/// \endcode
+///
+/// Include <GaussQuad/Polynomial> instead if only the polynomials are wanted.
+
 #include "src/OrthogonalPolynomial.h"
 #include "src/Quadrature.h"
 
-
-#endif  
+#endif  // GAUSSQUAD_ALL_MODULE_H

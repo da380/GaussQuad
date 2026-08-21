@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <GaussQuad/All>
-#include <Interpolation/Polynomial>
 #include <cmath>
 #include <complex>
 #include <concepts>
@@ -10,6 +9,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 // ---------------------------------------------------------------------------
@@ -17,14 +17,16 @@
 //
 // These need no reference implementation and no external library: every one of
 // them is a property the rule must have exactly, whatever algorithm produced
-// it.  The degrees deliberately straddle n = 100, which used to be the point
-// at which the implementation switched algorithms.
+// it.
 // ---------------------------------------------------------------------------
 
 template <std::floating_point Real>
 constexpr auto tol = 100 * std::numeric_limits<Real>::epsilon();
 
-// The degrees every rule is checked at.  95-105 brackets the old crossover.
+// The degrees every rule is checked at, from the smallest useful rule up to
+// one large enough for any error that grows with n to show.  The cluster at
+// 95-105 is there because a quadrature implementation is a natural place for a
+// degree-dependent branch to hide, and a spread of degrees would step over one.
 const std::vector<int> Degrees() {
   return {2, 3, 4, 5, 10, 32, 64, 95, 99, 100, 101, 105, 200, 257, 1000};
 }
@@ -83,8 +85,8 @@ Real WeightIntegral(Real alpha, Real beta) {
 // Built up by the ratio h_l / h_{l-1}, rather than from the closed form in
 // lgamma.  The closed form is a difference of lgammas of order l*log(l),
 // which at l = 100 already costs two digits to cancellation, and it is 0/0
-// at l = 0 when a + b = -1 -- so the reference would fail before the library
-// did.  Each factor here is O(1) and the product is well conditioned.
+// at l = 0 when a + b = -1, so it fails exactly where the hardest cases are.
+// Each factor here is O(1) and the product is well conditioned.
 template <std::floating_point Real>
 Real SquaredNorm(int l, Real a, Real b, Real mu0) {
   auto h = mu0;
@@ -111,8 +113,9 @@ void CheckRule(Rule r, int n, Real alpha, Real beta) {
   ASSERT_EQ(static_cast<int>(x.size()), n);
   ASSERT_EQ(static_cast<int>(w.size()), n);
 
-  // Nothing may be NaN or infinite.  Silent NaN in the weights is a failure
-  // mode this library has had before, and it hides from tolerance tests.
+  // Nothing may be NaN or infinite.  A NaN weight hides from every tolerance
+  // test below -- a comparison against a NaN is simply false -- so it has to
+  // be excluded explicitly rather than left to them.
   for (auto i = 0; i < n; i++) {
     ASSERT_TRUE(std::isfinite(x[i])) << "non-finite node at i = " << i;
     ASSERT_TRUE(std::isfinite(w[i])) << "non-finite weight at i = " << i;
@@ -277,7 +280,7 @@ TEST(ClosedForm, LobattoChebyshev) {
   }
 }
 
-// The Chebyshev polynomials themselves, which never compiled before.
+// The Chebyshev polynomials themselves, against T_n(cos t) = cos n t.
 TEST(ClosedForm, ChebyshevPolynomial) {
   using Real = double;
   const auto T = GaussQuad::ChebyshevPolynomial<Real>{};
@@ -291,8 +294,9 @@ TEST(ClosedForm, ChebyshevPolynomial) {
 
 // Zeros() finds the roots of the polynomial by Newton with Maehly deflation.
 // Its answer must be the Gauss nodes, which are computed by a wholly
-// independent route.  Before the deflation sum was accumulated in Real rather
-// than int, deflation did nothing, so a root could be found twice.
+// independent route.  The roots must also be distinct: deflation that
+// silently does nothing lets Newton return to a root already found, which
+// gives a plausible-looking set of nodes that is wrong.
 TEST(Zeros, MatchesGaussNodes) {
   using Real = double;
   for (auto n : {1, 2, 5, 20, 64, 101}) {
@@ -311,8 +315,8 @@ TEST(Zeros, MatchesGaussNodes) {
   }
 }
 
-// The two-point Lobatto rule is the trapezoid rule; it used to be rejected by
-// an over-strict assertion.
+// The two-point Lobatto rule is the trapezoid rule, and is the smallest rule
+// with both endpoints fixed.
 TEST(EdgeCase, LobattoTwoPoint) {
   const auto q = GaussQuad::GaussLobattoLegendreQuadrature1D<double>(2);
   EXPECT_EQ(q.X(0), -1.0);
@@ -389,6 +393,17 @@ TEST(Asymptotic, DefaultIsGolubWelsch) {
   const auto p = GaussQuad::LegendrePolynomial<double>{};
   EXPECT_EQ(p.GaussQuadrature(64).first,
             p.GaussQuadrature(64, GaussQuad::Method::GolubWelsch).first);
+}
+
+// The outermost node sits about 1/n^2 from the endpoint, so at some n it stops
+// being distinguishable from it -- in float, around n = 10^4.  The weight is
+// then 2/((1-x)(1+x)P'^2) with a vanishing denominator, and an infinite weight
+// passes every positivity and monotonicity test there is.  It has to be
+// diagnosed instead.
+TEST(Asymptotic, RejectsDegreeBeyondPrecision) {
+  EXPECT_THROW(GaussQuad::GaussLegendreQuadrature1D<float>(
+                   12000, GaussQuad::Method::GlaserLiuRokhlin),
+               std::runtime_error);
 }
 
 // ---------------------------------------------------------------------------
@@ -562,8 +577,9 @@ TEST(Api, NodesView) {
 #endif
 
 // An expression-template value type: operator* and operator+ return a proxy
-// rather than the value type, as Eigen's do.  The Integrable concept used to
-// require identity and so rejected every such integrand.
+// rather than the value type, as Eigen's do.  Integrable must accept these:
+// requiring the operators to return the value type itself would reject every
+// expression-template integrand.
 namespace {
 struct Proxy {
   double a, b;
@@ -588,8 +604,8 @@ TEST(Api, IntegratesExpressionTemplateValues) {
 }
 
 // ---------------------------------------------------------------------------
-// Argument checking.  These used to be assertions, so in a release build a
-// bad argument was silently undefined rather than diagnosed.
+// Argument checking.  Anything that builds a rule must diagnose a bad
+// argument by throwing, in release builds as much as in debug ones.
 // ---------------------------------------------------------------------------
 
 TEST(Validation, RejectsBadDegree) {
@@ -633,14 +649,59 @@ TEST(Validation, RejectsMalformedRule) {
 
 // ---------------------------------------------------------------------------
 // End-to-end: integrate random polynomials of the highest degree each rule is
-// exact for.  Kept from the original suite.
+// exact for.
 // ---------------------------------------------------------------------------
+
+// A polynomial with random coefficients, evaluated by Horner's rule, together
+// with its exact integral.  That is the whole of what the exactness tests need
+// of a polynomial, so they carry their own rather than taking a dependency on
+// an interpolation library for it.
+template <typename Value, std::floating_point Real>
+class RandomPolynomial {
+ public:
+  // Coefficients uniform on [-1,1], or on the unit square for a complex value
+  // type.
+  explicit RandomPolynomial(int degree) : _c(degree + 1) {
+    auto gen = std::mt19937_64{std::random_device{}()};
+    auto d = std::uniform_real_distribution<Real>{-1, 1};
+    for (auto& c : _c) {
+      if constexpr (std::is_same_v<Value, Real>) {
+        c = d(gen);
+      } else {
+        c = Value{d(gen), d(gen)};
+      }
+    }
+  }
+
+  Value operator()(Real x) const {
+    auto p = Value{};
+    for (auto i = _c.size(); i-- > 0;) p = p * x + _c[i];
+    return p;
+  }
+
+  // int_a^b p = sum_k c_k (b^(k+1) - a^(k+1)) / (k+1), with the powers
+  // accumulated as the sum is formed.
+  Value Integrate(Real a, Real b) const {
+    auto sum = Value{};
+    auto pa = a;
+    auto pb = b;
+    for (std::size_t k = 0; k < _c.size(); k++) {
+      sum += _c[k] * ((pb - pa) / static_cast<Real>(k + 1));
+      pa *= a;
+      pb *= b;
+    }
+    return sum;
+  }
+
+ private:
+  std::vector<Value> _c;
+};
 
 template <std::floating_point Real>
 constexpr auto eps = 2000 * std::numeric_limits<Real>::epsilon();
 
 template <std::floating_point Real, bool Complex = false>
-int TestExactness(Rule r, int n) {
+Real TestExactness(Rule r, int n) {
   auto q = [&] {
     switch (r) {
       case Rule::Gauss:
@@ -652,15 +713,9 @@ int TestExactness(Rule r, int n) {
     }
   }();
   const int m = (r == Rule::Gauss) ? 2 * n - 1 : 2 * n - 3;
-  if constexpr (Complex) {
-    auto p = Interpolation::Polynomial1D<std::complex<Real>>::Random(m);
-    Real error = std::abs(q.Integrate(p) - p.Integrate(-1, 1));
-    return (error < eps<Real>) ? 0 : 1;
-  } else {
-    auto p = Interpolation::Polynomial1D<Real>::Random(m);
-    Real error = std::abs(q.Integrate(p) - p.Integrate(-1, 1));
-    return (error < eps<Real>) ? 0 : 1;
-  }
+  using Value = std::conditional_t<Complex, std::complex<Real>, Real>;
+  const auto p = RandomPolynomial<Value, Real>(m);
+  return std::abs(q.Integrate(p) - p.Integrate(-1, 1));
 }
 
 int RandomDegree() {
@@ -672,7 +727,8 @@ int RandomDegree() {
 
 #define EXACTNESS_TEST(suite, name, rule, Real, Complex)                \
   TEST(suite, name) {                                                   \
-    EXPECT_EQ((TestExactness<Real, Complex>(rule, RandomDegree())), 0); \
+    EXPECT_LT((TestExactness<Real, Complex>(rule, RandomDegree())),   \
+              eps<Real>);                                              \
   }
 
 EXACTNESS_TEST(Gauss, RealDouble, Rule::Gauss, double, false)

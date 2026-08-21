@@ -1,8 +1,13 @@
 #ifndef GAUSSQUAD_POLYNOMIAL_MODULE_H
 #define GAUSSQUAD_POLYNOMIAL_MODULE_H
 
-// Header files to be included to use the GaussQuad library.
+/// \file Polynomial
+/// \brief The orthogonal polynomials alone, without the quadrature classes.
+///
+/// The polynomial classes still expose their Gauss, Radau and Lobatto rules as
+/// (nodes, weights) pairs; what this header leaves out is GaussQuad::Quadrature1D
+/// and the factory functions that wrap them.  Include <GaussQuad/All> for those.
+
 #include "src/OrthogonalPolynomial.h"
 
-
-#endif  
+#endif  // GAUSSQUAD_POLYNOMIAL_MODULE_H
