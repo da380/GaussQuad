@@ -47,8 +47,8 @@ Golub–Welsch to about `10⁻¹⁵`, so at large `n` it is the faster rule rath
 than the better one — pick it when construction cost matters.
 
 There is deliberately **no automatic switch** between the two. A rule whose
-algorithm changes with `n` is exactly the discontinuity this library used to
-have.
+algorithm changes with `n` has a discontinuity in its node values at the
+switch, which is invisible until something downstream depends on it.
 
 ```cpp
 auto q = GaussQuad::GaussLegendreQuadrature1D<double>(
@@ -134,6 +134,14 @@ target_link_libraries(your_target PRIVATE GaussQuad::GaussQuad)
 `add_subdirectory` and `FetchContent` also work; set `GAUSSQUAD_BUILD_TESTS=OFF`
 and `GAUSSQUAD_BUILD_EXAMPLES=OFF` to skip the developer targets, which are off
 by default when GaussQuad is not the top-level project.
+
+## Documentation
+
+[`docs/algorithms.md`](docs/algorithms.md) sets out how the rules are computed
+— Golub–Welsch and the tridiagonal eigensolver, Golub's modification for Radau
+and Lobatto, the Glaser–Liu–Rokhlin march — together with the measured accuracy
+and cost of each, and the reasoning behind the choices the implementation
+makes.
 
 ## References
 
