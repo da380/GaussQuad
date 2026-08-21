@@ -144,9 +144,24 @@ std::pair<std::vector<Real>, std::vector<Real>> GaussLegendreGLR(int n) {
     for (auto m = order; m >= 1; m--) der = der * t + m * u[m];
     der /= scale;
 
+    // Form 1 - x^2 as (1-x)(1+x): for a root near the endpoint, 1 - x is
+    // exact where 1 - x*x loses most of its digits to cancellation.
+    //
+    // That quantity is O(1/n^2) at the outermost nodes, and once n is large
+    // enough for it to underflow -- in float, around n = 10^4 -- the node is
+    // no longer distinguishable from the endpoint and its weight is not
+    // representable.  Golub-Welsch has no such limit, so say so rather than
+    // returning an infinity.
+    const auto c1 = (1 - root) * (1 + root);
+    if (!(c1 > 0)) {
+      throw std::runtime_error(
+          "GaussQuad: n is too large for Method::GlaserLiuRokhlin at this "
+          "precision; use Method::GolubWelsch");
+    }
+
     const auto i = (odd ? half + 1 : half) + k;
     x[i] = root;
-    w[i] = 2 / ((1 - root * root) * der * der);
+    w[i] = 2 / (c1 * der * der);
 
     // The new root becomes the next expansion point; there u_0 vanishes.
     centre = root;
@@ -169,9 +184,13 @@ std::pair<std::vector<Real>, std::vector<Real>> GaussLegendreGLR(int n) {
 
   // The march is the one part of this that could go quietly wrong: a Newton
   // step landing on a root that has already been found would give a rule that
-  // still looks plausible.  Check that it did not.
-  for (auto i = 1; i < n; i++) {
-    if (!(x[i - 1] < x[i]) || !(abs(x[i]) <= 1) || !(w[i] > 0)) {
+  // still looks plausible.  Check that it did not.  Every node is checked,
+  // including the first, and the weights are checked for being finite as well
+  // as positive, since an infinity satisfies w > 0.
+  constexpr auto inf = std::numeric_limits<Real>::infinity();
+  for (auto i = 0; i < n; i++) {
+    if ((i > 0 && !(x[i - 1] < x[i])) || !(abs(x[i]) <= 1) ||
+        !(w[i] > 0 && w[i] < inf)) {
       throw std::runtime_error(
           "GaussQuad: Glaser-Liu-Rokhlin produced an invalid rule");
     }
