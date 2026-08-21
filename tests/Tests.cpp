@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <GaussQuad/All>
-#include <Interpolation/Polynomial>
 #include <cmath>
 #include <complex>
 #include <concepts>
@@ -10,6 +9,7 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 // ---------------------------------------------------------------------------
@@ -633,14 +633,59 @@ TEST(Validation, RejectsMalformedRule) {
 
 // ---------------------------------------------------------------------------
 // End-to-end: integrate random polynomials of the highest degree each rule is
-// exact for.  Kept from the original suite.
+// exact for.
 // ---------------------------------------------------------------------------
+
+// A polynomial with random coefficients, evaluated by Horner's rule, together
+// with its exact integral.  That is the whole of what the exactness tests need
+// of a polynomial, so they carry their own rather than taking a dependency on
+// an interpolation library for it.
+template <typename Value, std::floating_point Real>
+class RandomPolynomial {
+ public:
+  // Coefficients uniform on [-1,1], or on the unit square for a complex value
+  // type.
+  explicit RandomPolynomial(int degree) : _c(degree + 1) {
+    auto gen = std::mt19937_64{std::random_device{}()};
+    auto d = std::uniform_real_distribution<Real>{-1, 1};
+    for (auto& c : _c) {
+      if constexpr (std::is_same_v<Value, Real>) {
+        c = d(gen);
+      } else {
+        c = Value{d(gen), d(gen)};
+      }
+    }
+  }
+
+  Value operator()(Real x) const {
+    auto p = Value{};
+    for (auto i = _c.size(); i-- > 0;) p = p * x + _c[i];
+    return p;
+  }
+
+  // int_a^b p = sum_k c_k (b^(k+1) - a^(k+1)) / (k+1), with the powers
+  // accumulated as the sum is formed.
+  Value Integrate(Real a, Real b) const {
+    auto sum = Value{};
+    auto pa = a;
+    auto pb = b;
+    for (std::size_t k = 0; k < _c.size(); k++) {
+      sum += _c[k] * ((pb - pa) / static_cast<Real>(k + 1));
+      pa *= a;
+      pb *= b;
+    }
+    return sum;
+  }
+
+ private:
+  std::vector<Value> _c;
+};
 
 template <std::floating_point Real>
 constexpr auto eps = 2000 * std::numeric_limits<Real>::epsilon();
 
 template <std::floating_point Real, bool Complex = false>
-int TestExactness(Rule r, int n) {
+Real TestExactness(Rule r, int n) {
   auto q = [&] {
     switch (r) {
       case Rule::Gauss:
@@ -652,15 +697,9 @@ int TestExactness(Rule r, int n) {
     }
   }();
   const int m = (r == Rule::Gauss) ? 2 * n - 1 : 2 * n - 3;
-  if constexpr (Complex) {
-    auto p = Interpolation::Polynomial1D<std::complex<Real>>::Random(m);
-    Real error = std::abs(q.Integrate(p) - p.Integrate(-1, 1));
-    return (error < eps<Real>) ? 0 : 1;
-  } else {
-    auto p = Interpolation::Polynomial1D<Real>::Random(m);
-    Real error = std::abs(q.Integrate(p) - p.Integrate(-1, 1));
-    return (error < eps<Real>) ? 0 : 1;
-  }
+  using Value = std::conditional_t<Complex, std::complex<Real>, Real>;
+  const auto p = RandomPolynomial<Value, Real>(m);
+  return std::abs(q.Integrate(p) - p.Integrate(-1, 1));
 }
 
 int RandomDegree() {
@@ -672,7 +711,8 @@ int RandomDegree() {
 
 #define EXACTNESS_TEST(suite, name, rule, Real, Complex)                \
   TEST(suite, name) {                                                   \
-    EXPECT_EQ((TestExactness<Real, Complex>(rule, RandomDegree())), 0); \
+    EXPECT_LT((TestExactness<Real, Complex>(rule, RandomDegree())),   \
+              eps<Real>);                                              \
   }
 
 EXACTNESS_TEST(Gauss, RealDouble, Rule::Gauss, double, false)

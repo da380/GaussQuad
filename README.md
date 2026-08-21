@@ -117,8 +117,7 @@ ctest --test-dir build
 
 The only dependency is [NumericConcepts](https://github.com/da380/NumericConcepts),
 which is found with `find_package` if installed and fetched otherwise.
-Tests additionally fetch GoogleTest and
-[Interpolation](https://github.com/da380/Interpolation).
+The tests additionally fetch GoogleTest, and nothing else.
 
 To install and consume as a package:
 
