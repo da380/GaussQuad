@@ -48,7 +48,7 @@ x p_{k-1}(x) = e_{k-1} p_{k-2}(x) + d_k p_{k-1}(x) + e_k p_k(x).
 
 Collecting the coefficients gives the symmetric tridiagonal *Jacobi matrix*
 `J_n`, with `d_1 … d_n` on the diagonal and `e_1 … e_{n-1}` off it. Golub and
-Welsch [[1]](#1) showed that the nodes of the `n`-point Gauss rule are exactly
+Welsch [1] showed that the nodes of the `n`-point Gauss rule are exactly
 the eigenvalues of `J_n`, and that the weights are
 
 ```
@@ -105,7 +105,7 @@ The iteration is bounded at 50 sweeps per eigenvalue and throws
 
 ## 4. Radau and Lobatto
 
-Golub's modification [[2]](#2) fixes one or both endpoints by perturbing the
+Golub's modification [2] fixes one or both endpoints by perturbing the
 trailing entries of the Jacobi matrix, so that the same eigensolver produces
 the constrained rule.
 
@@ -319,17 +319,17 @@ The tests additionally fetch GoogleTest.
 
 ## References
 
-<a id="1">[1]</a>
+**[1]**  
 Golub, G. H. and Welsch, J. H., 1969.
 Calculation of Gauss quadrature rules.
 *Mathematics of Computation*, **23**, 221–230.
 
-<a id="2">[2]</a>
+**[2]**  
 Golub, G. H., 1973.
 Some modified matrix eigenvalue problems.
 *SIAM Review*, **15**, 318–334.
 
-<a id="3">[3]</a>
+**[3]**  
 Glaser, A., Liu, X. and Rokhlin, V., 2007.
 A fast algorithm for the calculation of the roots of special functions.
 *SIAM Journal on Scientific Computing*, **29**, 1420–1438.

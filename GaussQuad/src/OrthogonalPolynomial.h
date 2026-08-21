@@ -1,6 +1,10 @@
 #ifndef GAUSS_QUAD_ORTHOGONAL_POLYNOMIAL_GUARD_H
 #define GAUSS_QUAD_ORTHOGONAL_POLYNOMIAL_GUARD_H
 
+/// \file OrthogonalPolynomial.h
+/// \brief The orthogonal polynomial families and the quadrature rules
+///        belonging to them.
+
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -18,36 +22,55 @@
 
 namespace GaussQuad {
 
-// Choice of algorithm for the Gauss-Legendre rule.
-//
-//   GolubWelsch      the default.  O(n^2) time and O(n) storage, and the
-//                    accuracy does not depend on n.  Available for every
-//                    weight function.
-//
-//   GlaserLiuRokhlin O(n) time, and about ten times faster by n = 1000 and a
-//                    thousand times by n = 16000.  The nodes agree with
-//                    Golub-Welsch to around 1e-15, but the weights drift as
-//                    O(n*eps), so at very large n it is the faster rule
-//                    rather than the better one.  Gauss-Legendre only.
-//
-// Both are available at every floating-point precision.  There is no
-// automatic switch between them: a rule whose algorithm changes with n is
-// exactly the discontinuity this library used to have.
-enum class Method { GolubWelsch, GlaserLiuRokhlin };
+/// \brief Choice of algorithm for the Gauss-Legendre rule.
+///
+/// Both are available at every floating-point precision.  There is
+/// deliberately no automatic switch between them: a rule whose algorithm
+/// changes with `n` has a discontinuity in its node values at the switch,
+/// which is invisible until something downstream depends on it.
+enum class Method {
+  /// The default.  \f$O(n^2)\f$ time and \f$O(n)\f$ storage, with an
+  /// accuracy that does not depend on `n`.  Available for every weight
+  /// function.
+  GolubWelsch,
+  /// \f$O(n)\f$ time: about a hundred times faster by `n = 1000` and two
+  /// thousand times by `n = 16000`.  The nodes agree with GolubWelsch to
+  /// around `1e-15`, but the weights drift as \f$O(n\epsilon)\f$, so at
+  /// large `n` it is the faster rule rather than the better one.  Available
+  /// for the Legendre weight only.
+  GlaserLiuRokhlin
+};
 
+/// \brief Jacobi polynomials \f$P_n^{(\alpha,\beta)}\f$, orthogonal on
+///        \f$[-1,1]\f$ with respect to \f$(1-x)^\alpha (1+x)^\beta\f$.
+///
+/// The general family, of which LegendrePolynomial (\f$\alpha = \beta = 0\f$)
+/// and ChebyshevPolynomial (\f$\alpha = \beta = -1/2\f$) are the named
+/// special cases.  The associated Gauss rule approximates
+/// \f$\int_{-1}^{1} (1-x)^\alpha (1+x)^\beta f(x)\,dx\f$: the weight
+/// belongs to the rule, not to the integrand.
+///
+/// \tparam Real A real floating-point type.
 template <NumericConcepts::Real Real>
 class JacobiPolynomial {
   using Int = std::ptrdiff_t;
 
  public:
-  // Constructor.
+  /// \brief Construct the family for the given weight exponents.
+  /// \param alpha The exponent of \f$(1-x)\f$; must exceed -1.
+  /// \param beta The exponent of \f$(1+x)\f$; must exceed -1.
+  /// \throws std::invalid_argument If either exponent is -1 or less, for
+  ///         which the weight is not integrable.
   JacobiPolynomial(Real alpha, Real beta) : _alpha{alpha}, _beta{beta} {
     // The Jacobi weight is integrable only for alpha, beta > -1.
     Internal::Require(alpha > -1, "Jacobi alpha must exceed -1", alpha);
     Internal::Require(beta > -1, "Jacobi beta must exceed -1", beta);
   }
 
-  // Evaluation by upwards recursion.
+  /// \brief Evaluate \f$P_n^{(\alpha,\beta)}(x)\f$ by upwards recursion.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the polynomial at \p x.
   Real operator()(Int n, Real x) const {
     assert(n >= 0);
     constexpr auto half = static_cast<Real>(1) / static_cast<Real>(2);
@@ -62,9 +85,16 @@ class JacobiPolynomial {
     return p;
   }
 
-  // Evaluation of derivatives via recursion.  Note that the expression used
-  // is singular at x = +-1; use the endpoint values of the quadrature rules
-  // rather than differentiating there.
+  /// \brief Evaluate the first derivative of \f$P_n^{(\alpha,\beta)}\f$.
+  ///
+  /// \warning The expression used has a removable singularity at
+  ///          \f$x = \pm 1\f$ and is not evaluable there.  Take the endpoint
+  ///          nodes from the Radau or Lobatto rules rather than
+  ///          differentiating at the endpoints.
+  ///
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation, strictly inside \f$(-1,1)\f$.
+  /// \return The value of the derivative at \p x.
   Real Derivative(Int n, Real x) const {
     switch (n) {
       case 0:
@@ -79,17 +109,22 @@ class JacobiPolynomial {
     }
   }
 
-  // Return zeros of the polynomial by Newton's method with Maehly deflation.
-  //
-  // This is a second, independent route to the Gauss nodes -- the zeros of
-  // P_n^(alpha,beta) are exactly those nodes -- and it is kept for that
-  // reason as much as for its own sake: the test suite checks it against the
-  // eigensolver, and two implementations that share no code agreeing is
-  // evidence that neither is wrong.
-  //
-  // Both are O(n^2), and measured against GaussQuadrature this agrees to
-  // 1.6e-15 at n = 1025 but takes about seven times as long, so prefer
-  // GaussQuadrature when the weights are wanted too.
+  /// \brief The zeros of \f$P_n^{(\alpha,\beta)}\f$, by Newton's method
+  ///        with Maehly deflation.
+  ///
+  /// These are exactly the nodes of the `n`-point Gauss rule, so this is a
+  /// second and wholly independent route to them, sharing no code with the
+  /// eigensolver GaussQuadrature() uses.  The test suite checks the two
+  /// against each other.
+  ///
+  /// Both are \f$O(n^2)\f$.  Measured against GaussQuadrature() this agrees
+  /// to `1.6e-15` at `n = 1025` but takes about seven times as long, so
+  /// prefer GaussQuadrature() whenever the weights are wanted too.
+  ///
+  /// \param n The degree; must be non-negative.
+  /// \return The `n` zeros in ascending order, or an empty vector for
+  ///         `n = 0`.
+  /// \throws std::invalid_argument If \p n is negative.
   auto Zeros(Int n) const {
     Internal::Require(n >= 0, "cannot find the zeros of a negative degree", n);
     if (n == 0) return std::vector<Real>{};
@@ -119,7 +154,15 @@ class JacobiPolynomial {
     return zeros;
   }
 
-  // Returns points and weights for Gauss quadrature.
+  /// \brief Nodes and weights of the `n`-point Gauss-Jacobi rule, exact for
+  ///        polynomials of degree up to \f$2n-1\f$.
+  ///
+  /// The rule is symmetric about the origin when
+  /// \f$\alpha = \beta\f$, and that symmetry is imposed exactly.
+  ///
+  /// \param n The number of points; must be positive.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is not positive.
   auto GaussQuadrature(int n) const {
     Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
     auto rule = Internal::GolubWelsch(Diagonal(n), OffDiagonal(n), Mu());
@@ -127,9 +170,18 @@ class JacobiPolynomial {
     return rule;
   }
 
-  // Returns points and weights for Gauss-Radau quadrature, with a node fixed
-  // at the left endpoint.  Golub's modification: solve (J_m - x1 I) d =
-  // beta_m^2 e_m and replace the trailing diagonal entry by x1 + d_m.
+  /// \brief Nodes and weights of the `n`-point Gauss-Radau-Jacobi rule, with
+  ///        a node fixed at \f$x = -1\f$, exact to degree \f$2n-2\f$.
+  ///
+  /// Golub's modification: solve \f$(J_m - x_1 I)\delta = e_m^2 v\f$ with
+  /// \f$v\f$ the last coordinate vector, and replace the trailing diagonal
+  /// entry of the Jacobi matrix by \f$x_1 + \delta_m\f$.  The fixed node is
+  /// then assigned exactly rather than left to the eigensolver, which returns
+  /// it only to within rounding.
+  ///
+  /// \param n The number of points; must be at least two.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is less than two.
   auto GaussRadauQuadrature(int n) const {
     Internal::Require(n > 1, "Gauss-Radau quadrature needs at least two points",
                       n);
@@ -150,10 +202,20 @@ class JacobiPolynomial {
     return rule;
   }
 
-  // Returns points and weights for Gauss-Lobatto quadrature, with nodes fixed
-  // at both endpoints.  Golub's modification: solve (J_m - x1 I) g = e_m and
-  // (J_m - x2 I) u = e_m, then beta_m^2 = (x2 - x1) / (g_m - u_m) and the
-  // trailing diagonal entry is x1 + g_m beta_m^2.
+  /// \brief Nodes and weights of the `n`-point Gauss-Lobatto-Jacobi rule,
+  ///        with nodes fixed at both endpoints, exact to degree \f$2n-3\f$.
+  ///
+  /// Golub's modification: with \f$v\f$ the last coordinate vector, solve
+  /// \f$(J_m - x_1 I)\gamma = v\f$ and \f$(J_m - x_2 I)\sigma = v\f$, then
+  /// \f$e_m^2 = (x_2 - x_1)/(\gamma_m - \sigma_m)\f$ and the trailing
+  /// diagonal entry is \f$x_1 + \gamma_m e_m^2\f$.  Both fixed nodes are then
+  /// assigned exactly.
+  ///
+  /// The two-point rule is the trapezoid rule, and is valid.
+  ///
+  /// \param n The number of points; must be at least two.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is less than two.
   auto GaussLobattoQuadrature(int n) const {
     Internal::Require(n > 1,
                       "Gauss-Lobatto quadrature needs at least two points", n);
@@ -273,19 +335,52 @@ class JacobiPolynomial {
   }
 };
 
+/// \brief Legendre polynomials \f$P_n\f$, orthogonal on \f$[-1,1]\f$ with
+///        unit weight.
+///
+/// The Jacobi family with \f$\alpha = \beta = 0\f$.  These are the rules
+/// whose Integrate() is the plain integral of the integrand, every other
+/// family carrying a weight function of its own.
+///
+/// \tparam Real A real floating-point type.
 template <NumericConcepts::Real Real>
 class LegendrePolynomial {
  public:
   LegendrePolynomial() : _p{JacobiPolynomial<Real>(0, 0)} {}
 
-  // Evaluation functions.
+  /// \brief Evaluate \f$P_n(x)\f$.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the polynomial at \p x.
   Real operator()(int n, Real x) const { return _p(n, x); }
+
+  /// \brief Evaluate \f$P_n'(x)\f$, for \p x strictly inside
+  ///        \f$(-1,1)\f$.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the derivative at \p x.
   Real Derivative(int n, Real x) const { return _p.Derivative(n, x); }
 
-  // Zeros and quadrature schemes.
+  /// \brief The zeros of \f$P_n\f$, by Newton's method; see
+  ///        JacobiPolynomial::Zeros.
+  /// \param n The degree; must be non-negative.
+  /// \return The `n` zeros in ascending order.
+  /// \throws std::invalid_argument If \p n is negative.
   auto Zeros(int n) const { return _p.Zeros(n); }
 
-  // The Gauss rule, by either algorithm; see Method above.
+  /// \brief Nodes and weights of the `n`-point Gauss-Legendre rule, exact for
+  ///        polynomials of degree up to \f$2n-1\f$.
+  ///
+  /// This is the one rule for which a choice of algorithm is offered; see
+  /// Method for what the choice costs and buys.
+  ///
+  /// \param n The number of points; must be positive.
+  /// \param method Which algorithm to use.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is not positive.
+  /// \throws std::runtime_error If the chosen algorithm fails to converge, or
+  ///         if \p n exceeds what Method::GlaserLiuRokhlin can represent at
+  ///         this precision.
   auto GaussQuadrature(int n, Method method = Method::GolubWelsch) const {
     Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
     if (method == Method::GlaserLiuRokhlin) {
@@ -294,7 +389,18 @@ class LegendrePolynomial {
     return _p.GaussQuadrature(n);
   }
 
+  /// \brief Nodes and weights of the `n`-point Gauss-Radau-Legendre rule,
+  ///        with a node fixed at \f$x = -1\f$.
+  /// \param n The number of points; must be at least two.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is less than two.
   auto GaussRadauQuadrature(int n) const { return _p.GaussRadauQuadrature(n); }
+
+  /// \brief Nodes and weights of the `n`-point Gauss-Lobatto-Legendre rule,
+  ///        with nodes fixed at both endpoints.
+  /// \param n The number of points; must be at least two.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is less than two.
   auto GaussLobattoQuadrature(int n) const {
     return _p.GaussLobattoQuadrature(n);
   }
@@ -303,22 +409,63 @@ class LegendrePolynomial {
   JacobiPolynomial<Real> _p;
 };
 
+/// \brief Chebyshev polynomials of the first kind, \f$T_n\f$, orthogonal on
+///        \f$[-1,1]\f$ with respect to \f$(1-x^2)^{-1/2}\f$.
+///
+/// The Jacobi family with \f$\alpha = \beta = -1/2\f$, rescaled to the
+/// standard normalisation \f$T_n(\cos\theta) = \cos n\theta\f$.
+///
+/// \note The associated rules approximate
+///       \f$\int_{-1}^{1} (1-x^2)^{-1/2} f(x)\,dx\f$, not
+///       \f$\int_{-1}^{1} f(x)\,dx\f$.
+///
+/// \tparam Real A real floating-point type.
 template <NumericConcepts::Real Real>
 class ChebyshevPolynomial {
  public:
   ChebyshevPolynomial() : _p{JacobiPolynomial<Real>(-0.5, -0.5)} {}
 
-  // Evaluation functions.
+  /// \brief Evaluate \f$T_n(x)\f$.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the polynomial at \p x.
   Real operator()(int n, Real x) const { return Scale(n) * _p(n, x); }
+
+  /// \brief Evaluate \f$T_n'(x)\f$, for \p x strictly inside
+  ///        \f$(-1,1)\f$.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the derivative at \p x.
   Real Derivative(int n, Real x) const {
     return Scale(n) * _p.Derivative(n, x);
   }
 
-  // Zeros and quadrature schemes.  These depend only on the Jacobi weight,
-  // and so are unaffected by the normalisation.
+  /// \brief The zeros of \f$T_n\f$.
+  ///
+  /// The zeros and the rules below depend only on the weight function, so the
+  /// normalisation does not enter them.
+  ///
+  /// \param n The degree; must be non-negative.
+  /// \return The `n` zeros in ascending order.
+  /// \throws std::invalid_argument If \p n is negative.
   auto Zeros(int n) const { return _p.Zeros(n); }
+
+  /// \brief Nodes and weights of the `n`-point Gauss-Chebyshev rule.
+  /// \param n The number of points; must be positive.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is not positive.
   auto GaussQuadrature(int n) const { return _p.GaussQuadrature(n); }
+
+  /// \brief Nodes and weights of the `n`-point Gauss-Radau-Chebyshev rule.
+  /// \param n The number of points; must be at least two.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is less than two.
   auto GaussRadauQuadrature(int n) const { return _p.GaussRadauQuadrature(n); }
+
+  /// \brief Nodes and weights of the `n`-point Gauss-Lobatto-Chebyshev rule.
+  /// \param n The number of points; must be at least two.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is less than two.
   auto GaussLobattoQuadrature(int n) const {
     return _p.GaussLobattoQuadrature(n);
   }
@@ -336,20 +483,33 @@ class ChebyshevPolynomial {
   }
 };
 
-// Laguerre polynomials, orthogonal on [0, infinity) with respect to the
-// weight x^alpha exp(-x).  The associated Gauss rule integrates
-// int_0^inf x^alpha exp(-x) f(x) dx.
+/// \brief Generalised Laguerre polynomials \f$L_n^{(\alpha)}\f$, orthogonal
+///        on \f$[0,\infty)\f$ with respect to \f$x^\alpha e^{-x}\f$.
+///
+/// The associated Gauss rule approximates
+/// \f$\int_0^\infty x^\alpha e^{-x} f(x)\,dx\f$.
+///
+/// \tparam Real A real floating-point type.
 template <NumericConcepts::Real Real>
 class LaguerrePolynomial {
  public:
+  /// \brief Construct the family with \f$\alpha = 0\f$.
   LaguerrePolynomial() : _alpha{0} {}
+
+  /// \brief Construct the family for a given weight exponent.
+  /// \param alpha The exponent of \f$x\f$ in the weight; must exceed -1.
+  /// \throws std::invalid_argument If \p alpha is -1 or less, for which the
+  ///         weight is not integrable.
   explicit LaguerrePolynomial(Real alpha) : _alpha{alpha} {
     // The weight is integrable only for alpha > -1.
     Internal::Require(alpha > -1, "Laguerre alpha must exceed -1", alpha);
   }
 
-  // Evaluation by upwards recursion:
-  //   (m+1) L_{m+1} = (2m + 1 + alpha - x) L_m - (m + alpha) L_{m-1}.
+  /// \brief Evaluate \f$L_n^{(\alpha)}(x)\f$ by upwards recursion,
+  ///        \f$(m+1)L_{m+1} = (2m+1+\alpha-x)L_m - (m+\alpha)L_{m-1}\f$.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the polynomial at \p x.
   Real operator()(int n, Real x) const {
     assert(n >= 0);
     auto pm1 = static_cast<Real>(1);
@@ -364,21 +524,37 @@ class LaguerrePolynomial {
     return p;
   }
 
-  // d/dx L_n^alpha = -L_{n-1}^(alpha+1).
+  /// \brief Evaluate the derivative, using
+  ///        \f$\frac{d}{dx}L_n^{(\alpha)} = -L_{n-1}^{(\alpha+1)}\f$.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the derivative at \p x.
   Real Derivative(int n, Real x) const {
     if (n == 0) return 0;
     return -LaguerrePolynomial(_alpha + 1)(n - 1, x);
   }
 
-  // Points and weights for Gauss-Laguerre quadrature.
+  /// \brief Nodes and weights of the `n`-point Gauss-Laguerre rule, exact for
+  ///        polynomials of degree up to \f$2n-1\f$.
+  /// \param n The number of points; must be positive.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is not positive.
   auto GaussQuadrature(int n) const {
     Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
     return Internal::GolubWelsch(Diagonal(n), OffDiagonal(n), Mu());
   }
 
-  // Points and weights for Gauss-Radau-Laguerre quadrature, with a node fixed
-  // at the origin -- the natural fixed endpoint for a semi-infinite domain.
-  // Golub's modification, exactly as for the Jacobi weights, with x1 = 0.
+  /// \brief Nodes and weights of the `n`-point Gauss-Radau-Laguerre rule,
+  ///        with a node fixed at the origin, exact to degree \f$2n-2\f$.
+  ///
+  /// The origin is the natural fixed endpoint for a semi-infinite domain.
+  /// Golub's modification applies exactly as for the Jacobi weights, with
+  /// \f$x_1 = 0\f$: the shift vanishes, so the system to solve is the Jacobi
+  /// matrix itself, positive definite because the Laguerre nodes are.
+  ///
+  /// \param n The number of points; must be at least two.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is less than two.
   auto GaussRadauQuadrature(int n) const {
     Internal::Require(n > 1, "Gauss-Radau quadrature needs at least two points",
                       n);
@@ -423,13 +599,21 @@ class LaguerrePolynomial {
   }
 };
 
-// Hermite polynomials, orthogonal on the whole real line with respect to the
-// weight exp(-x^2); the physicists' normalisation.  The associated Gauss rule
-// integrates int_{-inf}^{inf} exp(-x^2) f(x) dx.
+/// \brief Hermite polynomials \f$H_n\f$ in the physicists' normalisation,
+///        orthogonal on the whole real line with respect to \f$e^{-x^2}\f$.
+///
+/// The associated Gauss rule approximates
+/// \f$\int_{-\infty}^{\infty} e^{-x^2} f(x)\,dx\f$.
+///
+/// \tparam Real A real floating-point type.
 template <NumericConcepts::Real Real>
 class HermitePolynomial {
  public:
-  // Evaluation by upwards recursion: H_{m+1} = 2x H_m - 2m H_{m-1}.
+  /// \brief Evaluate \f$H_n(x)\f$ by upwards recursion,
+  ///        \f$H_{m+1} = 2xH_m - 2mH_{m-1}\f$.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the polynomial at \p x.
   Real operator()(int n, Real x) const {
     assert(n >= 0);
     auto pm1 = static_cast<Real>(1);
@@ -443,12 +627,23 @@ class HermitePolynomial {
     return p;
   }
 
-  // H_n' = 2n H_{n-1}.
+  /// \brief Evaluate the derivative, using \f$H_n' = 2nH_{n-1}\f$.
+  /// \param n The degree; must be non-negative.
+  /// \param x The point of evaluation.
+  /// \return The value of the derivative at \p x.
   Real Derivative(int n, Real x) const {
     return n == 0 ? Real(0) : 2 * n * this->operator()(n - 1, x);
   }
 
-  // Points and weights for Gauss-Hermite quadrature.
+  /// \brief Nodes and weights of the `n`-point Gauss-Hermite rule, exact for
+  ///        polynomials of degree up to \f$2n-1\f$.
+  ///
+  /// The weight is even, so the rule is symmetric about the origin; that
+  /// symmetry is imposed exactly.
+  ///
+  /// \param n The number of points; must be positive.
+  /// \return The nodes, in ascending order, and the corresponding weights.
+  /// \throws std::invalid_argument If \p n is not positive.
   auto GaussQuadrature(int n) const {
     Internal::Require(n > 0, "Gauss quadrature needs at least one point", n);
     auto d = std::vector<Real>(n, static_cast<Real>(0));

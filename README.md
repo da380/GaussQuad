@@ -11,11 +11,11 @@ are all tested.
 
 ## Method
 
-Nodes and weights come from the method of Golub and Welsch [[1]](#1): the nodes
+Nodes and weights come from the method of Golub and Welsch [1]: the nodes
 are the eigenvalues of the symmetric tridiagonal Jacobi matrix of the
 three-term recurrence, and the weights are `mu0 * q_i^2`, where `q_i` is the
 first component of the `i`th normalised eigenvector and `mu0` the integral of
-the weight function. Radau and Lobatto use Golub's modification [[2]](#2), which
+the weight function. Radau and Lobatto use Golub's modification [2], which
 fixes one or both endpoints by adjusting the trailing recurrence coefficients.
 
 The eigenproblem is solved in `src/TridiagonalEigen.h` by implicit QL with
@@ -40,7 +40,7 @@ For Gauss–Legendre specifically there is a second algorithm, selected with
 | `n = 16385` | 4.5 s | 2.4 ms |
 | weights | any | Legendre only |
 
-`GlaserLiuRokhlin` [[3]](#3) never evaluates the polynomial by recurrence: it
+`GlaserLiuRokhlin` [3] never evaluates the polynomial by recurrence: it
 marches from root to root using the local power series that the Legendre
 equation determines, at `O(1)` cost per node. Its nodes agree with
 Golub–Welsch to about `10⁻¹⁵`, so at large `n` it is the faster rule rather
@@ -143,19 +143,29 @@ and Lobatto, the Glaser–Liu–Rokhlin march — together with the measured acc
 and cost of each, and the reasoning behind the choices the implementation
 makes.
 
+Doxygen reference pages for the API are built by configuring with
+`-DGAUSSQUAD_BUILD_DOCS=ON` and building the `docs` target:
+
+```
+cmake -S . -B build -DGAUSSQUAD_BUILD_DOCS=ON
+cmake --build build --target docs
+```
+
+which writes `build/docs/html/index.html`.
+
 ## References
 
-<a id="1">[1]</a>
+**[1]**  
 Golub, G. H. and Welsch, J. H., 1969.
 Calculation of Gauss quadrature rules.
 *Mathematics of Computation*, **23**, 221–230.
 
-<a id="2">[2]</a>
+**[2]**  
 Golub, G. H., 1973.
 Some modified matrix eigenvalue problems.
 *SIAM Review*, **15**, 318–334.
 
-<a id="3">[3]</a>
+**[3]**  
 Glaser, A., Liu, X. and Rokhlin, V., 2007.
 A fast algorithm for the calculation of the roots of special functions.
 *SIAM Journal on Scientific Computing*, **29**, 1420–1438.
