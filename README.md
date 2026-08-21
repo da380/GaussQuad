@@ -137,6 +137,11 @@ by default when GaussQuad is not the top-level project.
 
 ## Documentation
 
+[`examples/`](examples/) holds eight short programs, each covering one aspect —
+basic integration, intervals, Radau and Lobatto, the weight functions, the two
+algorithms, the polynomials themselves, precision and value types, and error
+handling. They are built by default and land in `build/bin`.
+
 [`docs/algorithms.md`](docs/algorithms.md) sets out how the rules are computed
 — Golub–Welsch and the tridiagonal eigensolver, Golub's modification for Radau
 and Lobatto, the Glaser–Liu–Rokhlin march — together with the measured accuracy
