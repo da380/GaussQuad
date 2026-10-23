@@ -11,7 +11,10 @@ set(GAUSSQUAD_EXAMPLES
   08_ErrorHandling
 )
 
+# The targets are prefixed (see the top-level CMakeLists.txt); the programs
+# keep their plain names.
 foreach(example IN LISTS GAUSSQUAD_EXAMPLES)
-  add_executable(${example} ${example}.cpp)
-  target_link_libraries(${example} PRIVATE GaussQuad::GaussQuad)
+  add_executable(gaussquad_${example} ${example}.cpp)
+  set_target_properties(gaussquad_${example} PROPERTIES OUTPUT_NAME ${example})
+  target_link_libraries(gaussquad_${example} PRIVATE GaussQuad::GaussQuad)
 endforeach()
