@@ -35,11 +35,19 @@ option(GAUSSQUAD_BUILD_TESTS    "Build the GaussQuad tests"    ${GAUSSQUAD_IS_TO
 option(GAUSSQUAD_INSTALL        "Generate the GaussQuad install rules" ON)
 option(GAUSSQUAD_BUILD_DOCS     "Add a target building the Doxygen manual" OFF)
 
-# Pinned rather than tracking a branch, so that an upstream change cannot
-# break this project without anything here having changed.  Override to move
-# it, or install NumericConcepts yourself and find_package will prefer that.
-set(GAUSSQUAD_NUMERICCONCEPTS_TAG "888126b" CACHE STRING
-    "Git tag or commit of NumericConcepts to fetch if none is installed")
+# The NumericConcepts revision fetched when none is installed. The default is
+# main: the libraries are one author's and move together, so on a development
+# branch tracking main is the point, and every library that fetches
+# NumericConcepts asks for the same revision, whichever of them declares it
+# first. A release must name a state that can be rebuilt, so the commit that
+# tags a release sets this default to the commit it was tested against, and
+# the commit after it sets it back to main. It is a cache variable so that the
+# same can be done from outside:
+#
+#   cmake -DGAUSSQUAD_NUMERICCONCEPTS_TAG=<commit> ...
+set(GAUSSQUAD_NUMERICCONCEPTS_TAG main CACHE STRING
+    "The NumericConcepts revision to fetch if none is installed")
+mark_as_advanced(GAUSSQUAD_NUMERICCONCEPTS_TAG)
 
 # --- Dependencies -----------------------------------------------------------
 #
@@ -113,6 +121,10 @@ if(GAUSSQUAD_INSTALL)
 endif()
 
 # --- Developer targets ------------------------------------------------------
+#
+# Every target below is prefixed gaussquad_, so that none can collide with a
+# target of a project that consumes this one (a "docs" or "Tests" of its own,
+# say) when the options are switched on in a superbuild.
 
 if(GAUSSQUAD_BUILD_EXAMPLES)
   add_subdirectory(examples)
@@ -143,7 +155,7 @@ if(GAUSSQUAD_BUILD_DOCS)
   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in
                  ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
 
-  add_custom_target(docs
+  add_custom_target(gaussquad_docs
     COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Building the Doxygen manual in ${GAUSSQUAD_DOXYGEN_OUTPUT_DIR}/html"

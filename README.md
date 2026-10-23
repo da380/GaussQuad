@@ -149,11 +149,11 @@ and cost of each, and the reasoning behind the choices the implementation
 makes.
 
 Doxygen reference pages for the API are built by configuring with
-`-DGAUSSQUAD_BUILD_DOCS=ON` and building the `docs` target:
+`-DGAUSSQUAD_BUILD_DOCS=ON` and building the `gaussquad_docs` target:
 
 ```
 cmake -S . -B build -DGAUSSQUAD_BUILD_DOCS=ON
-cmake --build build --target docs
+cmake --build build --target gaussquad_docs
 ```
 
 which writes `build/docs/html/index.html`.

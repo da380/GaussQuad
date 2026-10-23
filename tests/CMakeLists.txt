@@ -11,8 +11,8 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(Tests Tests.cpp)
-target_link_libraries(Tests PRIVATE GaussQuad::GaussQuad gtest_main)
+add_executable(gaussquad_tests Tests.cpp)
+target_link_libraries(gaussquad_tests PRIVATE GaussQuad::GaussQuad gtest_main)
 
 include(GoogleTest)
-gtest_discover_tests(Tests)
+gtest_discover_tests(gaussquad_tests)
