@@ -213,7 +213,7 @@ to be carried forward. Marching over the roots in `(0,1)` and reflecting gives
 all `n` of them in `O(n)` work. The weights follow from
 `w = 2 / ((1-x)(1+x) P_n'(x)²)`.
 
-Three points are not obvious from the paper and cost time to rediscover.
+Three points are not obvious from the paper.
 
 - **For even `n` the first march step is a half spacing.** The roots are
   nearly equally spaced in `θ = arccos x`, but for even `n` they straddle
