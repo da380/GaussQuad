@@ -237,8 +237,8 @@ TYPED_TEST(Identities, Symmetry) {
   }
 }
 
-// The accuracy must not degrade with n.  This is the check that would have
-// caught both the step at n = 101 and the O(n*eps) drift beyond it.
+// The accuracy must not degrade with n.  A step between neighbouring degrees
+// (100 and 101 are both tested) or an O(n*eps) drift fails this check.
 TYPED_TEST(Identities, AccuracyIsIndependentOfDegree) {
   using Real = TypeParam;
   for (auto n : {10, 100, 101, 1000, 4000}) {
